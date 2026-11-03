@@ -64,3 +64,23 @@ No automatic retention policy is enabled. Back up usage and checkpoints together
 The main tsconfig.json includes src and tests with explicit Node/Jest types, modern Node16 module/resolution rules, isolatedModules and noEmit. It is used by editor checks and `npm run typecheck`, so test globals are recognized. Production `npm run build` uses tsconfig.build.json to emit only src into dist; test globals/files are excluded from that output. The Dockerfile copies both configs. No ignoreDeprecations suppression is used. Both configurations were checked with the installed TypeScript 5.9.3 and an isolated TypeScript 6.0.3 compiler; all 78 tests pass. If an editor keeps showing an old diagnostic, restart its TypeScript language server once to reload the project.
 
 The public /health response is not cacheable. The dashboard uses a same-origin /api/backend-health rewrite to call it without admin cookies or device keys. Browser health requests can reduce Render idle sleep while the dashboard runs; they are not a deployment or availability guarantee, and backend self-pinging is not configured.
+
+## Troubleshoot repeated Render startup failures
+
+The HTTP listener opens only after configuration, MongoDB connection, transaction support and indexes are ready. Therefore an early failure also causes Render's no-open-port warning; changing to a background worker will not fix it.
+
+Startup now logs the current stage and a safe error tag without printing connection strings, credentials, raw driver errors or stack traces:
+
+| Tag | Action |
+| --- | --- |
+| MISSING_MONGODB_URI / INVALID_MONGODB_URI | Configure the Atlas Drivers URI; replace placeholders, remove wrapping quotes and encode password characters |
+| INVALID_JWT_SECRET | Generate a random JWT secret with at least 32 characters |
+| LOCAL_DATABASE_ON_RENDER | Use Atlas; Render cannot reach your PC through localhost |
+| MONGODB_UNREACHABLE | Check cluster availability, URI/DNS and Atlas Network Access for Render outbound CIDR ranges |
+| MONGODB_AUTH_FAILED | Check the Atlas database user/password and authSource, not the Atlas website login |
+| MONGODB_PERMISSION_DENIED | Grant the database user appropriate read/write and index creation permissions on this database |
+| REPLICA_SET_REQUIRED | Use Atlas or a configured replica set |
+| INDEX_CONFLICT | Inspect index/data conflicts without deleting accounting state blindly |
+| INVALID_RENDER_HOST / HTTP_BIND_FAILED | Remove HOST or use 0.0.0.0; use Render's assigned PORT |
+
+Obtain outbound ranges from the specific Render service → Connect → Outbound and add those ranges to Atlas → Network Access. Do not substitute your home IP. Once corrected, deploy the latest commit; success ends with `[Server] Ready <port>` and /health returning status=ok, db=1. Do not paste secrets to troubleshoot. The latest startup-diagnostic change passed typecheck/build and 81 tests in 7 suites, including credential-redaction and compiled-process failure checks. Actual Render environment values remain unverified until its new safe error line is reviewed.
