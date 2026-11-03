@@ -1,0 +1,26 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "roots": [
+    "<rootDir>/tests"
+  ],
+  "testMatch": [
+    "**/*.test.ts"
+  ],
+  "transform": {
+    "^.+\\.ts$": "ts-jest"
+  },
+  "moduleFileExtensions": [
+    "ts",
+    "js",
+    "json"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.ts"
+  ],
+  "testTimeout": 30000,
+  "cacheDirectory": "<rootDir>/.jest-cache",
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  }
+}

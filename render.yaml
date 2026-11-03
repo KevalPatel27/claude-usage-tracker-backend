@@ -1,0 +1,27 @@
+# Prepared only; applying this creates an external service and requires authorization.
+services:
+  - type: web
+    name: claude-usage-tracker-backend
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_BOOTSTRAP_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: REPORTING_TIMEZONE
+        value: Asia/Kolkata
+      - key: DATA_MODE
+        value: collected

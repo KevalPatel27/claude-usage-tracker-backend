@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.jest-cache/
+.env
+.env.*
+!.env.example
+*.log
+
+# Local evidence, test output and private key material
+.local/
+coverage/
+*.pem
+*.key
+*.p12
+*.pfx
