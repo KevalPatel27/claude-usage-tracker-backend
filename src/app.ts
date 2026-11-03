@@ -83,6 +83,7 @@ app.use('/api/dashboard', apiLimiter, dashboardRouter);
 
 // Health check (no auth — used by Render)
 app.get('/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const dbState = mongoose.connection.readyState;
   res.status(dbState === 1 ? 200 : 503).json({
     status: dbState === 1 ? 'ok' : 'degraded',

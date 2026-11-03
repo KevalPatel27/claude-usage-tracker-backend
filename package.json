@@ -4,11 +4,12 @@
   "description": "Backend for Claude Code usage tracking",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

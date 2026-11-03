@@ -31,6 +31,7 @@ The backend defaults to port 4000. `/health` returns 200 when MongoDB is connect
 ## Build and tests
 
 ```sh
+npm run typecheck
 npm run build
 npm test
 ```
@@ -57,3 +58,9 @@ Free Render services can sleep and restart. Later cumulative exports can recover
 - Session IDs group reported usage, not conversation purpose or actual human activity. Unmatched historical IDs remain unavailable; first/last report times are observations, not active duration.
 
 No automatic retention policy is enabled. Back up usage and checkpoints together. No production deployment or public authenticated acceptance test is claimed by this repository.
+
+## TypeScript editor configuration
+
+The main tsconfig.json includes src and tests with explicit Node/Jest types, modern Node16 module/resolution rules, isolatedModules and noEmit. It is used by editor checks and `npm run typecheck`, so test globals are recognized. Production `npm run build` uses tsconfig.build.json to emit only src into dist; test globals/files are excluded from that output. The Dockerfile copies both configs. No ignoreDeprecations suppression is used. Both configurations were checked with the installed TypeScript 5.9.3 and an isolated TypeScript 6.0.3 compiler; all 78 tests pass. If an editor keeps showing an old diagnostic, restart its TypeScript language server once to reload the project.
+
+The public /health response is not cacheable. The dashboard uses a same-origin /api/backend-health rewrite to call it without admin cookies or device keys. Browser health requests can reduce Render idle sleep while the dashboard runs; they are not a deployment or availability guarantee, and backend self-pinging is not configured.
