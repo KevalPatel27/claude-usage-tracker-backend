@@ -25,22 +25,23 @@ Observed turn duration runs from submission callback receipt to the latest match
 
 1. Ensure the backend with `/v1/history` support is running and MongoDB is a replica set. Open the matching frontend and sign in as admin.
 2. Open **Sessions & prompts → Collection diagnostics → Set up history**, or **Connect a PC**. Choose the existing device to preserve its assignment and key; do not register a duplicate. For a new device, register once and save its key privately.
-3. Select the operating system and explicitly enable **Include captured-input history**. Download/run the normal metrics setup first if it is not already installed. Existing metrics-only PCs need only the history add-on.
-4. Install Python 3.8+ if missing, then download `setup-history.py` from the dashboard. Run the dashboard's copied history command from Downloads as the ordinary Claude user. It includes your backend URL and the existing device ID, never a key.
+3. Select the operating system and review **Include captured-input history** (checked by default, optional). Download the ONE installer shown on the dashboard. New and existing PCs use the same installer; it configures both features together.
+4. Install Python 3.8+ if missing, fully quit existing Code/Desktop sessions, then run the ONE copied setup command from Downloads as the ordinary Claude user. It includes the backend URL and existing device ID, never a key. The history helper is bundled and installed internally; no second download or command.
 
 Windows PowerShell:
 
 ```powershell
-python ".\setup-history.py" --backend-url "https://claude-usage-tracker-backend.onrender.com" --device-id "COPY_THE_DEVICE_ID_FROM_DASHBOARD"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\setup-pc.ps1" -BackendUrl "https://claude-usage-tracker-backend.onrender.com" -DeviceId "COPY_THE_DEVICE_ID_FROM_DASHBOARD"
 ```
 
 macOS/Linux Terminal:
 
 ```sh
-python3 "./setup-history.py" --backend-url "https://claude-usage-tracker-backend.onrender.com" --device-id "COPY_THE_DEVICE_ID_FROM_DASHBOARD"
+bash "./setup-macos.sh" --backend-url "https://claude-usage-tracker-backend.onrender.com" --device-id "COPY_THE_DEVICE_ID_FROM_DASHBOARD"
+# Linux: use setup-linux.sh instead. Download/run only the file for your OS.
 ```
 
-The helper reuses a valid metrics key only when its locally saved metrics endpoint matches this backend origin. Otherwise it requests the key privately. Do not paste keys into command arguments, chat or screenshots. If the key is lost, rotate that existing device's key and update its metrics/history setup; old keys stop working immediately.
+The single installer reuses a valid saved key only for the same backend origin. A new PC enters its assigned key once; the installer uses it for both features. Otherwise it requests the key privately. Do not paste keys into command arguments, chat or screenshots. If the key is lost, rotate that existing device's key and update its metrics/history setup; old keys stop working immediately.
 
 5. Fully quit/reopen Claude Desktop and start a NEW local Code session; terminal users restart Code too. Workspace trust decisions belong to the user. Hooks/settings disabled by organizational policy or an overriding launch environment must be resolved by that PC's administrator.
 6. Send a harmless input, let Claude finish, wait at least 60 seconds for metrics, then use **Verify**. History-enabled verification needs both a new positive token report and a new retained submission after verification started. A health response, setup success message or completion-only report is insufficient.
@@ -52,17 +53,17 @@ Register the second physical PC once with its own key and desired person. Repeat
 
 ## Updates, diagnostics and removal
 
-UI/backend changes using existing reports require no employee setup rerun. This new input-history feature requires one opt-in add-on install per participating PC; it is not automatic or silently enabled. Use the same device ID/key when updating. The installer preserves unrelated env/settings/hooks/statusLine, writes private backups, merges only owned handlers and refuses ambiguous edited ownership. It uses direct executable arguments, avoiding shell interpolation. `--settings-path` and `CLAUDE_CONFIG_DIR` can target the settings file the app actually reads. `--dry-run` previews changes.
+UI/backend changes using existing reports require no employee setup rerun. Adding/updating input history requires one run of the latest unified installer per participating PC; it is not automatic or silently enabled. Use the same device ID/key when updating. The installer preserves unrelated env/settings/hooks/statusLine, writes private backups, merges only owned handlers and refuses ambiguous edited ownership. It uses direct executable arguments, avoiding shell interpolation. `--settings-path` (Mac/Linux), `-SettingsPath` (Windows) and `CLAUDE_CONFIG_DIR` can target the settings file the app actually reads. `--dry-run` (Mac/Linux) or `-WhatIf` (Windows) previews changes.
 
 Default helper/queue location: `~/.claude/usage-ledger-history`, alongside the chosen settings file. Settings, backups and helper config contain keys and must stay private. POSIX files/directories request modes 0600/0700. Windows uses the ordinary user's profile directory and inherited ACLs; native Windows ACL hardening beyond that is not implemented. Never install in a shared-readable folder.
 
 ```sh
-python3 ./setup-history.py --status
-python3 ./setup-history.py --flush
-python3 ./setup-history.py --remove
+bash ./setup-macos.sh --remove
+# Linux: bash ./setup-linux.sh --remove
+# Windows: powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\setup-pc.ps1" -Remove
 ```
 
-Use `python` on Windows. Append `--settings-path` for a nondefault target. Removal erases owned pending input files/config and removes only owned hooks; it preserves other settings and keeps backups. Pause server collection in the dashboard as well. Pausing rejects server reports and the client pauses on its next 401/403; to stop capture on the PC immediately, remove its history hooks. Previously stored records remain until deletion/retention.
+The one installer removes both owned metrics and history settings. Metrics-only setup uses `-NoHistory` on Windows or `--no-history` on Mac/Linux and removes existing owned history hooks/queued text. Quit Code before removal or changing collection mode. Append `--settings-path` for a nondefault target. Removal erases owned pending input files/config and restores owned metrics settings and hooks; it preserves other settings and keeps backups. Pause server collection in the dashboard as well. Pausing rejects server reports and the client pauses on its next 401/403; to stop capture on the PC immediately, remove its history hooks. Previously stored records remain until deletion/retention.
 
 ## Outages and accounting
 
@@ -90,3 +91,7 @@ Implemented and tested locally: strict auth/opt-in, duplicate/concurrent/out-of-
 Prior real Windows Desktop submit/stop capability is verified. **A new real Desktop session through this production async helper, native macOS/Linux execution, public deployed frontend/backend and actual Render outage recovery are not yet independently verified.** No synthetic records were added to the collected local database.
 
 Release backend first, then frontend; review provider build results and run the first/second-PC acceptance above. Routine Git pushes may trigger configured provider auto-deploy; no manual provider deployment or paid-resource purchase is performed by these changes.
+
+## Unified installer verification
+
+The standalone Windows file passed native fresh-install, same-key upgrade, metrics-only switch and removal checks. Ten unified-engine tests cover prior separate installations, queued-input preservation, duplicate-hook prevention, invalid ownership/JSON/device/origin, rollback after injected disk failure, locking and later-edit preservation. Existing metric/history regressions pass. Synthetic HTTP integration now installs and removes the unified bundle, proving its installed helper still reports correctly. Native Mac/Linux and a fresh Desktop session remain unverified. Automatic rollback covers caught write failures; hard process/power interruption may require reviewing private backups.
