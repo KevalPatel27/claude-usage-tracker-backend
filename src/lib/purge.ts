@@ -1,3 +1,4 @@
+import { deleteUsage } from './storage.js';
 import { PromptTurn, PromptErasure, SessionProject } from '../models/history.js';
 import { erasePromptRows } from './history.js';
 import { ClientSession } from 'mongoose';
@@ -10,7 +11,7 @@ function confirmName(expected:string, supplied:unknown) {
 export async function purgeDevice(id:string, confirmation:unknown, session:ClientSession) {
  const device=await lockDevice(id,session);confirmName(device.name,confirmation);
  // Device lock serializes with in-flight ingestion. Removing its key prevents future retries.
- await UsageRecord.deleteMany({deviceId:device._id},{session});
+ await deleteUsage({deviceId:device._id},session);
  await Checkpoint.deleteMany({deviceId:device._id},{session});
  await PromptTurn.deleteMany({deviceId:device._id},{session});
  await PromptErasure.deleteMany({deviceId:device._id},{session});
@@ -44,6 +45,6 @@ export async function purgePerson(id:string, confirmation:unknown, session:Clien
   device.assignments=device.assignments.filter(a=>String(a.personId)!==String(person._id));
   await device.save({session});
  }
- await UsageRecord.deleteMany({personIdAtTime:person._id},{session});
+ await deleteUsage({personIdAtTime:person._id},session);
  await Person.deleteOne({_id:person._id},{session});
 }

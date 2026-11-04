@@ -1,3 +1,4 @@
+import { usageAggregate, findUsage } from '../lib/storage.js';
 import { purgePerson } from '../lib/purge.js';
 import { transaction, lockPerson, deletionReason, fail, safeDevice } from '../lib/management.js';
 
@@ -159,7 +160,7 @@ peopleRouter.get('/:id/usage', route(async(req,res)=>{
 
   const q=usageQuery({...req.query, personId:req.params.id});
 
-  const records=await UsageRecord.aggregate([{$match:q.match},{$group:{_id:{usageModel:'$usageModel',tokenType:'$tokenType',deviceId:'$deviceId'},totalTokens:{$sum:'$deltaTokens'}}}]);
+  const records=await usageAggregate([{$match:q.match},{$group:{_id:{usageModel:'$usageModel',tokenType:'$tokenType',deviceId:'$deviceId'},totalTokens:{$sum:'$deltaTokens'}}}]);
 
   const person=await Person.findById(req.params.id).lean();
 
@@ -171,7 +172,7 @@ peopleRouter.get('/:id/export.csv', route(async(req,res)=>{
 
   const q=usageQuery({...req.query, personId:req.params.id});
 
-  const records=await UsageRecord.find(q.match).sort({exportedAt:1}).limit(100001).lean();
+  const records=await findUsage(q.match);
 
   if(records.length>100000) return res.status(413).json({error:'Choose a smaller date range'});
 

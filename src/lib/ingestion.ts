@@ -1,6 +1,7 @@
+import { appendUsage, correctDelta, enrichSession, counterNeighbors, ensureMirrorStream } from './storage.js';
 /** Durable per-series serialization. All reads, inserts and neighbor corrections are transactional. */
 import mongoose, { Types } from 'mongoose';
-import { Checkpoint, Device, UsageRecord } from '../models/index.js';
+import { Checkpoint, Device } from '../models/index.js';
 import { buildSeriesKey } from './crypto.js';
 import { ParsedDataPoint } from './otlp-parser.js';
 export class CounterConflict extends Error {}
@@ -29,28 +30,27 @@ export async function ingestDataPoints(deviceId: Types.ObjectId, _person: Types.
         const floor = checkpoint?.purgedThroughTimeUnixNano;
         if (floor && timeUnixNano <= floor) return; // Acknowledge discarded historical retries without restoring erased data.
         if (floor && dp.aggregationTemporality === 1 && intervalStart < floor) throw new CounterConflict('Delta interval crosses permanently deleted history; start a new session');
+        await ensureMirrorStream(filter,session);
         // An exact stream fingerprint already includes session.id. A new readable ID can
         // safely label that stream's older samples without modifying accounting values.
-        if (dp.sessionId) await UsageRecord.updateMany({ ...filter, sessionId: null }, { $set: { sessionId: dp.sessionId } }, { session });
-        const same = await UsageRecord.findOne({ ...filter, timeUnixNano }).session(session);
+        if (dp.sessionId) await enrichSession(filter, dp.sessionId, session);
+        const {same,previous,next} = await counterNeighbors(filter,timeUnixNano,session);
         if (same) {
           if (same.cumulativeAtExport !== dp.asInt || same.intervalStart !== intervalStart) throw new CounterConflict('Conflicting export at the same timestamp');
           return;
         }
-        const previous = await UsageRecord.findOne({ ...filter, timeUnixNano: { $lt: timeUnixNano } }).sort({ timeUnixNano: -1 }).session(session);
-        const next = await UsageRecord.findOne({ ...filter, timeUnixNano: { $gt: timeUnixNano } }).sort({ timeUnixNano: 1 }).session(session);
         if (dp.aggregationTemporality === 1 && ((previous && previous.timeUnixNano > intervalStart) || (next && next.intervalStart < timeUnixNano))) {
           throw new CounterConflict('Overlapping delta intervals; use cumulative setup');
         }
         const previousValue = floor && (!previous || previous.timeUnixNano <= floor) ? checkpoint?.purgedCumulative : previous?.cumulativeAtExport;
         const deltaTokens = dp.aggregationTemporality === 1 ? dp.asInt : increment(dp.asInt, previousValue);
-        await UsageRecord.create([{ deviceId, sessionId: dp.sessionId ?? null, personIdAtTime: next && dp.aggregationTemporality === 2 ? next.personIdAtTime : device.personId, seriesKey,
+        await appendUsage({ deviceId, sessionId: dp.sessionId ?? null, personIdAtTime: next && dp.aggregationTemporality === 2 ? next.personIdAtTime : device.personId, seriesKey,
           exportedAt: new Date(Number(BigInt(dp.timeUnixNano) / 1000000n)), timeUnixNano, intervalStart,
           temporality: dp.aggregationTemporality, usageModel: dp.model, tokenType: dp.tokenType,
-          querySource: dp.querySource, deltaTokens, cumulativeAtExport: dp.asInt, startTimeUnixNano: dp.startTimeUnixNano }], { session });
+          querySource: dp.querySource, deltaTokens, cumulativeAtExport: dp.asInt, startTimeUnixNano: dp.startTimeUnixNano }, session);
         // Late cumulative exports split the successor's interval instead of adding overlapping totals.
         if (next && dp.aggregationTemporality === 2) {
-          await UsageRecord.updateOne({ _id: next._id }, { $set: { deltaTokens: increment(next.cumulativeAtExport, dp.asInt) } }, { session });
+          await correctDelta(filter, next._id, increment(next.cumulativeAtExport, dp.asInt), session);
         }
         await Checkpoint.updateOne(filter, { $set: { lastCumulative: next?.cumulativeAtExport ?? dp.asInt,
           lastStartTimeUnixNano: dp.startTimeUnixNano, updatedAt: new Date() } }, { session });

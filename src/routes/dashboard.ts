@@ -1,3 +1,5 @@
+import { usageAggregate, findUsage } from '../lib/storage.js';
+import { storageStats } from '../lib/storage.js';
 import { PromptTurn } from '../models/history.js';
 import { historyRetentionDays } from '../lib/history.js';
 import { Router } from 'express';
@@ -9,13 +11,14 @@ import { usageQuery, csvCell } from '../lib/query.js';
 import { readPricing, estimateCost, pricingMetadata } from '../lib/pricing.js';
 export const dashboardRouter = Router();
 dashboardRouter.use(requireAdmin);
+dashboardRouter.get('/storage-status',route(async(_req,res)=>res.json(await storageStats())));
 
 // Session identity is scoped by device. Missing historical IDs are explicit buckets, not invented sessions.
 dashboardRouter.get('/sessions', route(async(req,res)=>{
   const q=usageQuery(req.query), rawPage=req.query.page??'0';
   if(typeof rawPage!=='string'||!/^(0|[1-9]\d{0,4})$/.test(rawPage))return res.status(400).json({error:'Invalid session page'});
   const page=Number(rawPage),limit=25;
-  const [data]=await UsageRecord.aggregate([
+  const [data]=await usageAggregate([
     {$match:q.match},
     {$group:{_id:{deviceId:'$deviceId',sessionId:{$ifNull:['$sessionId',null]},model:'$usageModel',tokenType:'$tokenType',personId:'$personIdAtTime'},tokens:{$sum:'$deltaTokens'},records:{$sum:1},firstReportAt:{$min:'$exportedAt'},lastReportAt:{$max:'$exportedAt'}}},
     {$group:{_id:{deviceId:'$_id.deviceId',sessionId:'$_id.sessionId'},totalTokens:{$sum:'$tokens'},recordCount:{$sum:'$records'},firstReportAt:{$min:'$firstReportAt'},lastReportAt:{$max:'$lastReportAt'},personIds:{$addToSet:'$_id.personId'},breakdown:{$push:{_id:{model:'$_id.model',tokenType:'$_id.tokenType'},totalTokens:'$tokens'}}}},
@@ -46,7 +49,7 @@ dashboardRouter.get('/overview', route(async (req,res) => {
   const q = usageQuery(req.query);
   const trendUnit = q.to.getTime() - q.from.getTime() <= 2 * 86400000 ? 'hour' : 'day';
   // One aggregation command gives a consistent snapshot for every displayed breakdown.
-  const [data] = await UsageRecord.aggregate([{ $match: q.match }, { $facet: {
+  const [data] = await usageAggregate([{ $match: q.match }, { $facet: {
     totalsByType: [{ $group: { _id:'$tokenType',total:{$sum:'$deltaTokens'} } }],
     byPerson: [{ $group:{ _id:'$personIdAtTime',totalTokens:{$sum:'$deltaTokens'} } },{$sort:{totalTokens:-1}}],
     byDevice: [{ $group:{ _id:'$deviceId',totalTokens:{$sum:'$deltaTokens'} } },{$sort:{totalTokens:-1}}],
@@ -86,7 +89,7 @@ dashboardRouter.get('/overview', route(async (req,res) => {
 }));
 dashboardRouter.get('/export.csv', route(async (req,res) => {
   const q=usageQuery(req.query);
-  const records=await UsageRecord.find(q.match).sort({exportedAt:1}).limit(100001).lean();
+  const records=await findUsage(q.match);
   if(records.length>100000) return res.status(413).json({error:'Export exceeds 100,000 records; choose a smaller date range'});
   const pricing = readPricing();
   const header=['exportedAtUtc','reportingDate','timezone','personId','deviceId','sessionId','model','tokenType','querySource','estimatedApiCostUsd','deltaTokens'];

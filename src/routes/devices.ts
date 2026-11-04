@@ -1,3 +1,4 @@
+import { usageAggregate, findUsage } from '../lib/storage.js';
 import { purgeDevice } from '../lib/purge.js';
 import { transaction, lockPerson, lockDevice, deletionReason, fail, safeDevice } from '../lib/management.js';
 import { usageQuery, csvCell } from '../lib/query.js';
@@ -123,13 +124,13 @@ devicesRouter.delete('/:id',route(async(req,res)=>{
 // Detail summary and export use shared dashboard filters.
 devicesRouter.get('/:id/usage', route(async(req,res)=>{
   const q=usageQuery({...req.query, deviceId:req.params.id});
-  const records=await UsageRecord.aggregate([{$match:q.match},{$group:{_id:{usageModel:'$usageModel',tokenType:'$tokenType',deviceId:'$deviceId'},totalTokens:{$sum:'$deltaTokens'}}}]);
+  const records=await usageAggregate([{$match:q.match},{$group:{_id:{usageModel:'$usageModel',tokenType:'$tokenType',deviceId:'$deviceId'},totalTokens:{$sum:'$deltaTokens'}}}]);
   const person=null;
   return res.json({records,person});
 }));
 devicesRouter.get('/:id/export.csv', route(async(req,res)=>{
   const q=usageQuery({...req.query, deviceId:req.params.id});
-  const records=await UsageRecord.find(q.match).sort({exportedAt:1}).limit(100001).lean();
+  const records=await findUsage(q.match);
   if(records.length>100000) return res.status(413).json({error:'Choose a smaller date range'});
   res.type('text/csv');res.setHeader('Content-Disposition','attachment; filename="usage.csv"');res.setHeader('Cache-Control','no-store');
   return res.send(['exportedAt,personId,deviceId,sessionId,model,tokenType,querySource,deltaTokens',...records.map(r=>[r.exportedAt.toISOString(),r.personIdAtTime,r.deviceId,r.sessionId,r.usageModel,r.tokenType,r.querySource,r.deltaTokens].map(csvCell).join(','))].join('\r\n'));

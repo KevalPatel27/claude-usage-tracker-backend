@@ -1,4 +1,5 @@
 import { QueryError } from './lib/query.js';
+import {storageMode,compactStorage,STORAGE_VERSION} from './lib/storage.js';
 import { ManagementError } from './lib/management.js';
 import 'dotenv/config';
 import express from 'express';
@@ -91,6 +92,8 @@ app.get('/health', (_req, res) => {
     status: dbState === 1 ? 'ok' : 'degraded',
     db: dbState,
     uptime: process.uptime(),
+    release:process.env.RENDER_GIT_COMMIT??null,
+    storage:{writerMode:storageMode,readMode:compactStorage?'compact':'raw',version:STORAGE_VERSION},
   });
 });
 

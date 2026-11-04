@@ -150,7 +150,8 @@ UsageRecordSchema.index({ exportedAt: -1 });
 UsageRecordSchema.index({ usageModel: 1, exportedAt: -1 }, { name: 'usage_model_period' });
 UsageRecordSchema.index({ sessionId: 1, deviceId: 1, exportedAt: -1 });
 
-export const UsageRecord = mongoose.model<IUsageRecord>('UsageRecord', UsageRecordSchema);
+if(process.env.STORAGE_MODE==='compact-v2'){UsageRecordSchema.set('autoCreate',false);UsageRecordSchema.set('autoIndex',false);}
+export const UsageRecord = mongoose.model<IUsageRecord>('UsageRecord', UsageRecordSchema,process.env.STORAGE_MODE==='compact-v2'?'usagepoints':'usagerecords');
 
 // ─── Checkpoint ───────────────────────────────────────────────────────────────
 // Tracks last known cumulative value per series to calculate deltas.
@@ -162,6 +163,7 @@ export interface ICheckpoint extends Document {
   seriesKey: string;
   revision: number;
   lastCumulative: number;
+  compactVersion?: string;
   purgedThroughTimeUnixNano?: string;
   purgedCumulative?: number;
   lastStartTimeUnixNano: string;  // detect counter resets (process restarts)
@@ -174,6 +176,7 @@ const CheckpointSchema = new Schema<ICheckpoint>(
     seriesKey: { type: String, required: true },
     revision: { type: Number, default: 0, validate: safeCounter },
     lastCumulative: { type: Number, default: 0, validate: safeCounter },
+    compactVersion: { type:String },
     purgedThroughTimeUnixNano: { type: String, match: nanoString },
     purgedCumulative: { type: Number, validate: safeCounter },
     lastStartTimeUnixNano: { type: String, default: '0', match: nanoString },
