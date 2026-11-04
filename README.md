@@ -84,3 +84,7 @@ Startup now logs the current stage and a safe error tag without printing connect
 | INVALID_RENDER_HOST / HTTP_BIND_FAILED | Remove HOST or use 0.0.0.0; use Render's assigned PORT |
 
 Obtain outbound ranges from the specific Render service → Connect → Outbound and add those ranges to Atlas → Network Access. Do not substitute your home IP. Once corrected, deploy the latest commit; success ends with `[Server] Ready <port>` and /health returning status=ok, db=1. Do not paste secrets to troubleshoot. The latest startup-diagnostic change passed typecheck/build and 81 tests in 7 suites, including credential-redaction and compiled-process failure checks. Actual Render environment values remain unverified until its new safe error line is reviewed.
+
+### Schema and query indexes
+
+See [schema and index guide](docs/SCHEMA-AND-INDEXES.md) for persistence rules, additive query indexes, local explain tests, deployment behavior and limits.

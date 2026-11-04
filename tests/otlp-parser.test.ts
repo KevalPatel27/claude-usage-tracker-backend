@@ -207,3 +207,14 @@ describe('parseOtlpMetricsPayload', () => {
     expect(result[0].dataPoints[0].asInt).toBe(5000);
   });
 });
+
+
+describe('Bounded searchable telemetry dimensions', () => {
+  test.each(['model', 'query_source'])('rejects oversized %s before persistence', key => {
+    const payload = JSON.parse(JSON.stringify(samplePayload));
+    const point = payload.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0];
+    point.attributes = point.attributes.filter((a: { key: string }) => a.key !== key);
+    point.attributes.push({ key, value: { stringValue: 'x'.repeat(201) } });
+    expect(() => parseOtlpMetricsPayload(payload)).toThrow();
+  });
+});

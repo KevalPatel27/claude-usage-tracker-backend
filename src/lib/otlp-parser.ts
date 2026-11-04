@@ -54,7 +54,9 @@ export function parseOtlpMetricsPayload(body: unknown): ParsedMetricsPayload[] {
         if (!Number.isSafeInteger(value) || value < 0) throw new Error('Token count must be a nonnegative safe integer');
         const model = stringAttr(dp.attributes,'model');
         const tokenType = stringAttr(dp.attributes,'type');
-        if (!model || !['input','output','cacheRead','cacheCreation'].includes(tokenType ?? '')) throw new Error('Missing model or unsupported token category');
+        if (!model || model.length > 200 || !['input','output','cacheRead','cacheCreation'].includes(tokenType ?? '')) throw new Error('Missing model or unsupported token category');
+        const querySource = stringAttr(dp.attributes,'query_source') ?? 'main';
+        if (!querySource || querySource.length > 200) throw new Error('Invalid query source');
         const rawSessionId = stringAttr(dp.attributes,'session.id') ?? stringAttr(resource,'session.id');
         const sessionId = rawSessionId && /^[A-Za-z0-9._:-]{1,128}$/.test(rawSessionId) ? rawSessionId : null;
         // Preserve ALL dimensions in a nonreversible fingerprint, including session.id.
@@ -63,7 +65,7 @@ export function parseOtlpMetricsPayload(body: unknown): ParsedMetricsPayload[] {
           sortedAttributes(resource), rm.schemaUrl, sm.scope, sm.schemaUrl,
           m.name, m.unit, sortedAttributes(dp.attributes), sum.aggregationTemporality
         ])).digest('hex');
-        dataPoints.push({ model, sessionId, tokenType: tokenType!, querySource: stringAttr(dp.attributes,'query_source') ?? 'main',
+        dataPoints.push({ model, sessionId, tokenType: tokenType!, querySource,
           startTimeUnixNano: start.toString(), timeUnixNano: end.toString(), asInt: value,
           aggregationTemporality: sum.aggregationTemporality, isMonotonic: true, identityHash });
       }
