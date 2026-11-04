@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 
+import { historyRouter, historyIngestRouter } from './routes/history.js';
 import { otlpRouter } from './routes/otlp.js';
 import { authRouter } from './routes/auth.js';
 import { devicesRouter } from './routes/devices.js';
@@ -71,7 +72,7 @@ const apiLimiter = rateLimit({
 });
 
 // ─── Routes ────────────────────────────────────────────────────────────────────
-app.use('/v1', otlpLimiter, otlpRouter);
+app.use('/v1', otlpLimiter, otlpRouter, historyIngestRouter);
 app.use('/api', (req, res, next) => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin && !allowedOrigins.includes(req.headers.origin)) return res.status(403).json({ error: 'Origin not allowed' });
   next();
@@ -80,6 +81,7 @@ app.use('/api/auth', rateLimit({ windowMs: 15 * 60_000, max: 30, skip: req => re
 app.use('/api/devices', apiLimiter, devicesRouter);
 app.use('/api/people', apiLimiter, peopleRouter);
 app.use('/api/dashboard', apiLimiter, dashboardRouter);
+app.use('/api/history', apiLimiter, historyRouter);
 
 // Health check (no auth — used by Render)
 app.get('/health', (_req, res) => {
@@ -102,7 +104,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   if (!(err instanceof ManagementError) && !(err instanceof QueryError)) console.error('[ERROR]', err.name);
   const status = (err as Error & { status?: number }).status;
   const httpStatus = status && status >= 400 && status < 500 ? status : 500;
-  if (_req.path.startsWith('/v1/')) { res.status(httpStatus).json({ code: httpStatus === 400 ? 3 : httpStatus === 413 ? 8 : 13, message: 'Request failed' }); return; }
+  if (_req.path === '/v1/metrics') { res.status(httpStatus).json({ code: httpStatus === 400 ? 3 : httpStatus === 413 ? 8 : 13, message: 'Request failed' }); return; }
   res.status(httpStatus).json({ error: err instanceof ManagementError || err instanceof QueryError ? err.message : 'Request failed' });
 });
 

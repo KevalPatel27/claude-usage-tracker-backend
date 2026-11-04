@@ -46,6 +46,12 @@ export interface IDevice extends Document {
   assignments: IDeviceAssignment[];
   revokedAt: Date | null;
   lastReportAt: Date | null;
+  promptCollectionEnabled: boolean;
+  lastHistoryReportAt: Date | null;
+  historySetupVersion: string | null;
+  historyPlatform: string | null;
+  historyPendingCount: number | null;
+  historyDroppedCount: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,6 +77,12 @@ const DeviceSchema = new Schema<IDevice>(
     assignments: { type: [DeviceAssignmentSchema], default: [] },
     revokedAt: { type: Date, default: null },
     lastReportAt: { type: Date, default: null },
+    promptCollectionEnabled: { type: Boolean, default: false },
+    lastHistoryReportAt: { type: Date, default: null },
+    historySetupVersion: { type: String, default: null, maxlength: 30 },
+    historyPlatform: { type: String, default: null },
+    historyPendingCount: { type: Number, default: null },
+    historyDroppedCount: { type: Number, default: null },
   },
   { timestamps: true }
 );

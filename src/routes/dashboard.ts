@@ -1,3 +1,5 @@
+import { PromptTurn } from '../models/history.js';
+import { historyRetentionDays } from '../lib/history.js';
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { Device, Person, UsageRecord } from '../models/index.js';
@@ -105,8 +107,10 @@ dashboardRouter.get('/verify-device/:deviceId', route(async(req,res)=>{
   const since=new Date(String(req.query.since??new Date(Date.now()-3600000).toISOString()));
   if(!Number.isFinite(since.getTime())) return res.status(400).json({error:'Invalid verification time'});
   const recentReport=await UsageRecord.findOne({deviceId:device._id,createdAt:{$gte:since},deltaTokens:{$gt:0}}).sort({createdAt:-1}).lean();
-  return res.json({deviceId:device._id,deviceName:device.name,lastReportAt:device.lastReportAt,
-    hasReported:!!device.lastReportAt,verified:!device.revokedAt && !!recentReport,recentReport:recentReport?{exportedAt:recentReport.exportedAt,model:recentReport.usageModel,tokenType:recentReport.tokenType,deltaTokens:recentReport.deltaTokens}:null});
+  if(req.query.history!==undefined && !['true','false'].includes(String(req.query.history))) return res.status(400).json({error:'Invalid history verification option'});
+  const historyVerified = req.query.history==='true' ? !!(device.promptCollectionEnabled && await PromptTurn.exists({deviceId:device._id,createdAt:{$gte:since},submittedAt:{$gte:since},expiresAt:{$gt:new Date()}})) : null;
+  return res.json({deviceId:device._id,deviceName:device.name,lastReportAt:device.lastReportAt,historyVerified,
+    hasReported:!!device.lastReportAt,verified:!device.revokedAt && !device.archivedAt && !!recentReport && historyVerified!==false,recentReport:recentReport?{exportedAt:recentReport.exportedAt,model:recentReport.usageModel,tokenType:recentReport.tokenType,deltaTokens:recentReport.deltaTokens}:null});
 }));
 dashboardRouter.get('/settings',route(async(_req,res)=>res.json({dataMode:process.env.DATA_MODE??'collected',reportingTimezone:process.env.REPORTING_TIMEZONE??'UTC',
-  dataRetentionDays:null,retentionNote:'Automatic deletion is disabled. Keep counter and deduplication state with usage records until a coordinated archival policy is implemented.',version:'1.0.0'})));
+  promptRetentionDays:historyRetentionDays(),dataRetentionDays:null,retentionNote:'Automatic deletion is disabled. Keep counter and deduplication state with usage records until a coordinated archival policy is implemented.',version:'1.0.0'})));

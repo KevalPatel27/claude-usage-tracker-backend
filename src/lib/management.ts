@@ -1,3 +1,4 @@
+import { PromptTurn } from '../models/history.js';
 import mongoose, { ClientSession, Types } from 'mongoose';
 import { Device, Person, UsageRecord, Checkpoint } from '../models/index.js';
 
@@ -29,9 +30,11 @@ export async function deletionReason(kind: 'person' | 'device', id: Types.Object
   const options = session ? { session } : {};
   if (kind === 'person') {
     if (await Device.exists({ $or: [{ personId: id }, { 'assignments.personId': id }] }).setOptions(options)) return 'A current or historical device assignment exists. Archive this person to preserve attribution.';
+    if (await PromptTurn.exists({personIdAtTime:id}).setOptions(options)) return 'Recorded prompt history exists. Archive this person to preserve attribution.';
     if (await UsageRecord.exists({ personIdAtTime: id }).setOptions(options)) return 'Recorded usage exists. Archive this person to preserve history.';
   } else {
     const device = await Device.findById(id).setOptions(options);
+    if (await PromptTurn.exists({deviceId:id}).setOptions(options)) return 'This device has prompt history. Use permanent deletion to erase it.';
     if (device?.lastReportAt || await UsageRecord.exists({ deviceId: id }).setOptions(options) || await Checkpoint.exists({ deviceId: id }).setOptions(options)) return 'This device has reported. Archive it to preserve usage and counter history.';
     if (device && !device.revokedAt) return 'Revoke or archive this device before deleting it.';
   }

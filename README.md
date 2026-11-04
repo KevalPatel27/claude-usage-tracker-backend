@@ -10,7 +10,7 @@ Authenticated OpenTelemetry receiver and reporting API for Claude Code usage acr
 - Reports usage by date, person, device, model and session; exports matching CSVs. New readable session IDs can enrich exactly matching historical streams without changing totals.
 - Estimates API-equivalent costs using a verified model catalog. Estimates are separate from subscription billing; shared-PC assignments do not identify the actual human.
 
-Normal Claude requests continue directly to Anthropic. This service receives token metrics; it does not collect prompts, responses, conversation titles or transcripts.
+Normal Claude requests continue directly to Anthropic. Token reporting stays separate from optional captured-input history. The new authenticated /v1/history path receives allowlisted submitted input text and correlation/completion metadata only after device opt-in. Automated notifications may also appear; authorship is not guaranteed. No transcript files or assistant-response/tool-output fields are collected.
 
 ## Local setup
 
@@ -88,3 +88,9 @@ Obtain outbound ranges from the specific Render service → Connect → Outbound
 ### Schema and query indexes
 
 See [schema and index guide](docs/SCHEMA-AND-INDEXES.md) for persistence rules, additive query indexes, local explain tests, deployment behavior and limits.
+
+## Optional captured-input history
+
+See [history setup, retention, APIs and acceptance checks](docs/PROMPT-HISTORY.md). Set `PROMPT_RETENTION_DAYS=30` (default; 1–365). Startup initializes indexes for new PromptTurn, SessionProject and PromptErasure collections. Existing OTLP clients, usage counters and checkpoints retain their behavior. Deploy backend support before offering the new frontend/history helper. Text collection remains disabled for existing devices until an admin opts in.
+
+Validation adds real MongoDB integration tests for dedup, concurrent/out-of-order reports, erasure replay protection, retention, filters, CSV, opt-in/auth and diagnostics. Run existing full test suite with an isolated loopback replica set, never a production URI.

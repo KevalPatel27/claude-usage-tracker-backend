@@ -1,3 +1,5 @@
+import { PromptTurn, PromptErasure, SessionProject } from '../models/history.js';
+import { erasePromptRows } from './history.js';
 import { ClientSession } from 'mongoose';
 import { Checkpoint, Device, Person, UsageRecord } from '../models/index.js';
 import { fail, lockDevice, lockPerson } from './management.js';
@@ -10,14 +12,20 @@ export async function purgeDevice(id:string, confirmation:unknown, session:Clien
  // Device lock serializes with in-flight ingestion. Removing its key prevents future retries.
  await UsageRecord.deleteMany({deviceId:device._id},{session});
  await Checkpoint.deleteMany({deviceId:device._id},{session});
+ await PromptTurn.deleteMany({deviceId:device._id},{session});
+ await PromptErasure.deleteMany({deviceId:device._id},{session});
+ await SessionProject.deleteMany({deviceId:device._id},{session});
  await device.deleteOne({session});
 }
 export async function purgePerson(id:string, confirmation:unknown, session:ClientSession) {
  const person=await lockPerson(id,session);confirmName(person.name,confirmation);
  const usageDevices=await UsageRecord.distinct('deviceId',{personIdAtTime:person._id}).session(session);
- const devices=await Device.find({$or:[{personId:person._id},{'assignments.personId':person._id},{_id:{$in:usageDevices}}]}).sort({_id:1}).session(session);
+ const historyDevices=await PromptTurn.distinct('deviceId',{personIdAtTime:person._id}).session(session);
+ const devices=await Device.find({$or:[{personId:person._id},{'assignments.personId':person._id},{_id:{$in:[...usageDevices,...historyDevices]}}]}).sort({_id:1}).session(session);
  for(const snapshot of devices){
   const device=await lockDevice(String(snapshot._id),session);
+  const prompts=await PromptTurn.find({deviceId:device._id,personIdAtTime:person._id}).select('deviceId sessionId promptId').session(session);
+  await erasePromptRows(prompts,session);
   // Remove only the target person's usage. Other owners' records and totals remain intact.
   const series=await UsageRecord.distinct('seriesKey',{deviceId:device._id,personIdAtTime:person._id}).session(session);
   for(const seriesKey of series){

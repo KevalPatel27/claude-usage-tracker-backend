@@ -33,7 +33,8 @@ devicesRouter.get('/:id', route(async (req: Request, res: Response) => {
 
 // Register a new device and generate its key
 devicesRouter.post('/', route(async (req: Request, res: Response) => {
-  const { name, personId } = req.body;
+  const { name, personId, promptCollectionEnabled = false } = req.body;
+  if(typeof promptCollectionEnabled!=='boolean') return res.status(400).json({error:'Invalid prompt history preference'});
   if (typeof name !== 'string' || !name.trim() || name.length > 120) return res.status(400).json({ error: 'Device name required' });
 
   if (personId !== undefined && personId !== null && (typeof personId !== 'string' || !/^[a-f0-9]{24}$/i.test(personId))) {
@@ -43,7 +44,7 @@ devicesRouter.post('/', route(async (req: Request, res: Response) => {
   const { rawKey, keyHash, keyPrefix } = generateDeviceKey();
   const device = await transaction(async session => {
     const person = personId ? await lockPerson(personId,session,true) : null;
-    const [created] = await Device.create([{name:name.trim(),keyHash,keyPrefix,personId:person?._id??null,assignments:person?[{personId:person._id,assignedAt:new Date()}]:[]}],{session});
+    const [created] = await Device.create([{name:name.trim(),keyHash,keyPrefix,promptCollectionEnabled,personId:person?._id??null,assignments:person?[{personId:person._id,assignedAt:new Date()}]:[]}],{session});
     return created;
   });
 
@@ -74,6 +75,11 @@ devicesRouter.patch('/:id', route(async (req,res) => {
   if(typeof name!=='string'||!name.trim()||name.length>120||(notes!==undefined&&(typeof notes!=='string'||notes.length>2000))) return res.status(400).json({error:'Provide a name (1–120 characters) and notes up to 2,000 characters.'});
   const d=await Device.findByIdAndUpdate(req.params.id,{$set:{name:name.trim(),...(notes!==undefined?{notes:notes.trim()}:{})}},{new:true,runValidators:true}).lean();
   if(!d)return res.status(404).json({error:'Device not found'});return res.json(safeDevice(d));
+}));
+devicesRouter.patch('/:id/prompt-history', route(async(req,res)=>{
+  if(typeof req.body?.enabled!=='boolean')return res.status(400).json({error:'Provide enabled as true or false.'});
+  const device=await transaction(async session=>{const d=await lockDevice(req.params.id,session);d.promptCollectionEnabled=req.body.enabled;await d.save({session});return d;});
+  return res.json(safeDevice(device.toObject()));
 }));
 // Assignment changes serialize with ingestion; stored usage retains its original person.
 devicesRouter.patch('/:id/assign', route(async (req,res) => {
