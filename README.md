@@ -98,3 +98,7 @@ Validation adds real MongoDB integration tests for dedup, concurrent/out-of-orde
 ## Formatting
 
 Run `npm run format` to apply Prettier, or `npm run format:check` to check it. Both repositories use the same Prettier and EditorConfig conventions.
+
+## Hostinger builds
+
+Hostinger runs `npm install` before `npm run build`. The repository's `.npmrc` includes development dependencies so TypeScript and its type declarations are installed even with `NODE_ENV=production`. Use `dist/index.js` as the entry file and `PORT=3000` for Hostinger's managed Express hosting.
