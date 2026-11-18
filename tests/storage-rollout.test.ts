@@ -124,6 +124,15 @@ suite('Transactional storage rollout', () => {
     await UsageBucket.deleteMany({});
     await expect(verifyStorage()).rejects.toThrow('parity failed');
   });
+  test('verification detects changed attribution with equal record counts and token totals', async () => {
+    await send(1000, 10);
+    await send(1400, 20);
+    await UsageBucket.updateOne(
+      { deviceId: device },
+      { $set: { 'p.0.o': new mongoose.Types.ObjectId() } },
+    );
+    await expect(verifyStorage()).rejects.toThrow('parity failed');
+  });
   test('verified cutover accepts later exports and preserves purging with the raw collection retired', async () => {
     const payload = (value: number, time: number) => {
       const reading = dp(value, time);

@@ -30,7 +30,7 @@ node dist/scripts/storage-rollout.js verify
 
 Backfill takes the existing device lock per stream and writes chunks plus the completion marker atomically. It is resumable by repeating the command. Current reports, reassignment and purge serialize with backfill; deleted people/devices cannot be recreated by an older snapshot. Original documents and checkpoints are not replaced from a stale backup.
 
-Verify compares count, token sum AND a canonical SHA256 of every raw/reconstructed document in the SAME snapshot transaction. Missing IDs, altered times/ownership/deltas or duplicate points fail the comparison. It does not mutate raw records or reader selection.
+Verify compares count, token sum and a SHA256 digest of all canonical raw/reconstructed document hashes in the same snapshot transaction. It sorts the fixed-size hashes on the operator's PC, avoiding an Atlas-side sort of the expanded view. Missing IDs, altered times/ownership/deltas or duplicate points fail the comparison. It does not mutate raw records or reader selection.
 
 4. After parity and acceptable query behavior, switch readers:
 

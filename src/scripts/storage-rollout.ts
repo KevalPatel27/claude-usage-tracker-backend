@@ -30,18 +30,18 @@ export async function verifyStorage() {
     await session.withTransaction(
       async () => {
         const hash = async (name: string) => {
-          const h = createHash('sha256');
-          let count = 0,
-            total = 0;
-          for await (const row of mongoose.connection
-            .db!.collection(name)
-            .find({}, { session })
-            .sort({ _id: 1 })) {
-            h.update(canonical(row) + '\n');
-            count++;
+          // Sorting the expanded view can exceed Atlas Free's server memory limit.
+          // Retain only fixed-size document hashes locally, including duplicate occurrences.
+          const documentHashes: Buffer[] = [];
+          let total = 0;
+          for await (const row of mongoose.connection.db!.collection(name).find({}, { session })) {
+            documentHashes.push(createHash('sha256').update(canonical(row)).digest());
             total += row.deltaTokens;
           }
-          return { count, total, sha256: h.digest('hex') };
+          documentHashes.sort(Buffer.compare);
+          const digest = createHash('sha256');
+          for (const documentHash of documentHashes) digest.update(documentHash);
+          return { count: documentHashes.length, total, sha256: digest.digest('hex') };
         };
         const raw = await hash('usagerecords'),
           compact = await hash('usagepoints');
