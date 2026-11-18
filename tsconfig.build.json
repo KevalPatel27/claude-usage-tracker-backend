@@ -4,18 +4,10 @@
     "noEmit": false,
     "rootDir": "./src",
     "outDir": "./dist",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "declaration": true,
     "sourceMap": true
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests"]
 }

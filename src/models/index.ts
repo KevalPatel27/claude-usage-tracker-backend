@@ -2,7 +2,10 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 
 // Shared persistence invariants. Request parsing is still required: update validators
 // only run for supported operators, not arbitrary raw database writes.
-const safeCounter = { validator: (value: number) => Number.isSafeInteger(value) && value >= 0, message: 'Expected a nonnegative safe integer' };
+const safeCounter = {
+  validator: (value: number) => Number.isSafeInteger(value) && value >= 0,
+  message: 'Expected a nonnegative safe integer',
+};
 const nanoString = /^\d{1,20}$/;
 
 // ─── Person ───────────────────────────────────────────────────────────────────
@@ -18,8 +21,13 @@ export interface IPerson extends Document {
 }
 
 const PersonSchema = new Schema<IPerson>(
-  { name: { type: String, required: true, trim: true, maxlength: 120 }, notes: { type: String, default: "", maxlength: 2000 }, archivedAt: { type: Date, default: null }, revision: { type: Number, default: 0, validate: safeCounter } },
-  { timestamps: true }
+  {
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    notes: { type: String, default: '', maxlength: 2000 },
+    archivedAt: { type: Date, default: null },
+    revision: { type: Number, default: 0, validate: safeCounter },
+  },
+  { timestamps: true },
 );
 
 PersonSchema.index({ archivedAt: 1, name: 1 });
@@ -40,8 +48,8 @@ export interface IDevice extends Document {
   notes: string;
   archivedAt: Date | null;
   revision: number;
-  keyHash: string;       // bcrypt hash — never store raw key
-  keyPrefix: string;     // first 8 chars for display/identification
+  keyHash: string; // bcrypt hash — never store raw key
+  keyPrefix: string; // first 8 chars for display/identification
   personId: Types.ObjectId | null;
   assignments: IDeviceAssignment[];
   revokedAt: Date | null;
@@ -62,13 +70,13 @@ const DeviceAssignmentSchema = new Schema<IDeviceAssignment>(
     assignedAt: { type: Date, required: true },
     revokedAt: { type: Date },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const DeviceSchema = new Schema<IDevice>(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
-    notes: { type: String, default: "", maxlength: 2000 },
+    notes: { type: String, default: '', maxlength: 2000 },
     archivedAt: { type: Date, default: null },
     revision: { type: Number, default: 0, validate: safeCounter },
     keyHash: { type: String, required: true },
@@ -84,7 +92,7 @@ const DeviceSchema = new Schema<IDevice>(
     historyPendingCount: { type: Number, default: null },
     historyDroppedCount: { type: Number, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 DeviceSchema.index({ personId: 1 });
@@ -102,17 +110,17 @@ export interface IUsageRecord {
   _id: Types.ObjectId;
   deviceId: Types.ObjectId;
   sessionId: string | null;
-  personIdAtTime: Types.ObjectId | null;  // snapshot at ingestion — never reassigned
+  personIdAtTime: Types.ObjectId | null; // snapshot at ingestion — never reassigned
   timeUnixNano: string;
   intervalStart: string;
   temporality: number;
-  exportedAt: Date;                         // from OTLP timeUnixNano
-  usageModel: string;   // stored as usageModel to avoid Mongoose Document.model naming conflict
-  tokenType: string;    // input | output | cacheRead | cacheCreation
+  exportedAt: Date; // from OTLP timeUnixNano
+  usageModel: string; // stored as usageModel to avoid Mongoose Document.model naming conflict
+  tokenType: string; // input | output | cacheRead | cacheCreation
   querySource: string;
-  deltaTokens: number;  // increment from previous cumulative checkpoint
+  deltaTokens: number; // increment from previous cumulative checkpoint
   cumulativeAtExport: number;
-  seriesKey: string;    // uniquely identifies a counter series
+  seriesKey: string; // uniquely identifies a counter series
   startTimeUnixNano: string;
   createdAt: Date;
 }
@@ -127,7 +135,11 @@ const UsageRecordSchema = new Schema<IUsageRecord>(
     intervalStart: { type: String, required: true, match: nanoString },
     temporality: { type: Number, required: true, enum: [1, 2] },
     usageModel: { type: String, required: true, maxlength: 200 },
-    tokenType: { type: String, required: true, enum: ['input', 'output', 'cacheRead', 'cacheCreation'] },
+    tokenType: {
+      type: String,
+      required: true,
+      enum: ['input', 'output', 'cacheRead', 'cacheCreation'],
+    },
     querySource: { type: String, required: true, default: 'main', maxlength: 200 },
     deltaTokens: { type: Number, required: true, validate: safeCounter },
     cumulativeAtExport: { type: Number, required: true, validate: safeCounter },
@@ -135,14 +147,11 @@ const UsageRecordSchema = new Schema<IUsageRecord>(
     startTimeUnixNano: { type: String, required: true, match: nanoString },
     createdAt: { type: Date, default: Date.now },
   },
-  { versionKey: false }
+  { versionKey: false },
 );
 
 // Prevent duplicate inserts from retried exports
-UsageRecordSchema.index(
-  { deviceId: 1, seriesKey: 1, timeUnixNano: 1 },
-  { unique: true }
-);
+UsageRecordSchema.index({ deviceId: 1, seriesKey: 1, timeUnixNano: 1 }, { unique: true });
 // Dashboard read patterns
 UsageRecordSchema.index({ deviceId: 1, exportedAt: -1 });
 UsageRecordSchema.index({ personIdAtTime: 1, exportedAt: -1 });
@@ -155,7 +164,11 @@ if (compactOnly) {
   UsageRecordSchema.set('autoCreate', false);
   UsageRecordSchema.set('autoIndex', false);
 }
-export const UsageRecord = mongoose.model<IUsageRecord>('UsageRecord', UsageRecordSchema, compactOnly ? 'usagepoints' : 'usagerecords');
+export const UsageRecord = mongoose.model<IUsageRecord>(
+  'UsageRecord',
+  UsageRecordSchema,
+  compactOnly ? 'usagepoints' : 'usagerecords',
+);
 
 // ─── Checkpoint ───────────────────────────────────────────────────────────────
 // Tracks last known cumulative value per series to calculate deltas.
@@ -170,7 +183,7 @@ export interface ICheckpoint extends Document {
   compactVersion?: string;
   purgedThroughTimeUnixNano?: string;
   purgedCumulative?: number;
-  lastStartTimeUnixNano: string;  // detect counter resets (process restarts)
+  lastStartTimeUnixNano: string; // detect counter resets (process restarts)
   updatedAt: Date;
 }
 
@@ -180,13 +193,13 @@ const CheckpointSchema = new Schema<ICheckpoint>(
     seriesKey: { type: String, required: true },
     revision: { type: Number, default: 0, validate: safeCounter },
     lastCumulative: { type: Number, default: 0, validate: safeCounter },
-    compactVersion: { type:String },
+    compactVersion: { type: String },
     purgedThroughTimeUnixNano: { type: String, match: nanoString },
     purgedCumulative: { type: Number, validate: safeCounter },
     lastStartTimeUnixNano: { type: String, default: '0', match: nanoString },
     updatedAt: { type: Date, default: Date.now },
   },
-  { versionKey: false }
+  { versionKey: false },
 );
 
 CheckpointSchema.index({ deviceId: 1, seriesKey: 1 }, { unique: true });
@@ -207,7 +220,7 @@ const AdminSchema = new Schema<IAdmin>(
     username: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Admin = mongoose.model<IAdmin>('Admin', AdminSchema);

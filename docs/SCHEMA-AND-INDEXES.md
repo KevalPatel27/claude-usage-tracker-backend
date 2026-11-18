@@ -4,13 +4,13 @@ The backend owns MongoDB access. Device keys authorize ingestion only; dashboard
 
 ## Collections and relationships
 
-| Collection | Purpose | Relationships and invariants |
-| --- | --- | --- |
-| people | Assigned person, name, notes, lifecycle | Names trimmed, required, at most 120 characters; notes at most 2,000 |
-| devices | Reporting identity and assignment history | Current person plus dated assignment snapshots; full key stored only as a hash; friendly name at most 120 characters |
-| usagerecords | One accepted counter export per stream/time | Device, optional readable session ID, historical person snapshot, model, token category, exact nanosecond timestamps and calculated increment |
-| checkpoints | Durable stream serialization and deletion floors | Unique device + stream; retains replay protection through restarts and permanent history deletion |
-| admins | Dashboard sign-in | Unique normalized username; password hash |
+| Collection   | Purpose                                          | Relationships and invariants                                                                                                                  |
+| ------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| people       | Assigned person, name, notes, lifecycle          | Names trimmed, required, at most 120 characters; notes at most 2,000                                                                          |
+| devices      | Reporting identity and assignment history        | Current person plus dated assignment snapshots; full key stored only as a hash; friendly name at most 120 characters                          |
+| usagerecords | One accepted counter export per stream/time      | Device, optional readable session ID, historical person snapshot, model, token category, exact nanosecond timestamps and calculated increment |
+| checkpoints  | Durable stream serialization and deletion floors | Unique device + stream; retains replay protection through restarts and permanent history deletion                                             |
+| admins       | Dashboard sign-in                                | Unique normalized username; password hash                                                                                                     |
 
 Usage counters and checkpoint totals must be nonnegative safe integers; fractions, Infinity, NaN and unsafe integers are rejected. Token categories are input/output/cacheRead/cacheCreation. Temporality is delta (1) or cumulative (2). Nano timestamps remain digit strings, avoiding Number precision loss. Model/query source dimensions are limited to 200 characters at the parser and model layers; unknown model names are still accepted and explicitly unpriced. Request parsing and transactional logic remain necessary: Mongoose update validators do not validate every update operator.
 
@@ -18,20 +18,20 @@ Historical attribution remains in `personIdAtTime`; reassignment does not relabe
 
 ## Index inventory
 
-| Collection / key | Query or invariant |
-| --- | --- |
-| people: archivedAt, name | Active directory, name ordering |
-| devices: personId; assignments.personId | Current assignments and historical-person deletion checks |
-| devices: archivedAt, createdAt descending; revokedAt | Device directory and lifecycle filters |
+| Collection / key                                                   | Query or invariant                                                                                          |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| people: archivedAt, name                                           | Active directory, name ordering                                                                             |
+| devices: personId; assignments.personId                            | Current assignments and historical-person deletion checks                                                   |
+| devices: archivedAt, createdAt descending; revokedAt               | Device directory and lifecycle filters                                                                      |
 | devices: keyPrefix, revokedAt, archivedAt (`ingestion_key_lookup`) | Resolve active candidates before verifying the full key hash; **not unique**, prefix collisions are allowed |
-| usage: deviceId, seriesKey, timeUnixNano (unique) | Durable duplicate-export protection and neighboring stream samples |
-| usage: deviceId, exportedAt descending | Device period summaries/export |
-| usage: personIdAtTime, exportedAt descending | Person period summaries/export |
-| usage: exportedAt descending | Overall date ranges |
-| usage: usageModel, exportedAt descending (`usage_model_period`) | Model-filtered date ranges |
-| usage: sessionId, deviceId, exportedAt descending | Session drill-down |
-| checkpoints: deviceId, seriesKey (unique) | Per-stream checkpoint |
-| admins: username (unique) | Sign-in identity |
+| usage: deviceId, seriesKey, timeUnixNano (unique)                  | Durable duplicate-export protection and neighboring stream samples                                          |
+| usage: deviceId, exportedAt descending                             | Device period summaries/export                                                                              |
+| usage: personIdAtTime, exportedAt descending                       | Person period summaries/export                                                                              |
+| usage: exportedAt descending                                       | Overall date ranges                                                                                         |
+| usage: usageModel, exportedAt descending (`usage_model_period`)    | Model-filtered date ranges                                                                                  |
+| usage: sessionId, deviceId, exportedAt descending                  | Session drill-down                                                                                          |
+| checkpoints: deviceId, seriesKey (unique)                          | Per-stream checkpoint                                                                                       |
+| admins: username (unique)                                          | Sign-in identity                                                                                            |
 
 The existing standalone usage deviceId index is retained for compatibility; assess redundant indexes on real workloads before removal. Indexes add storage and ingestion write cost. Avoid indexing every dashboard combination without query evidence. No automatic TTL is enabled: independent expiry could remove baselines or replay protection and corrupt totals.
 

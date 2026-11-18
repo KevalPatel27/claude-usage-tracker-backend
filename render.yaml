@@ -7,12 +7,12 @@ services:
     buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
     startCommand: npm start
     healthCheckPath: /health
-    autoDeployTrigger: "off"
+    autoDeployTrigger: 'off'
     envVars:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_BOOTSTRAP_SECRET

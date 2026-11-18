@@ -10,25 +10,52 @@ let stage = 'configuration validation';
 async function start() {
   const config = startupConfig(process.env);
   historyRetentionDays();
-  stage = 'MongoDB connection'; console.log('[Startup] Connecting to MongoDB (connection string withheld)');
+  stage = 'MongoDB connection';
+  console.log('[Startup] Connecting to MongoDB (connection string withheld)');
   const connectionParams = new URLSearchParams(config.uri.split('?', 2)[1]);
-  const hasCompressor = [...connectionParams.keys()].some(key => key.toLowerCase() === 'compressors');
+  const hasCompressor = [...connectionParams.keys()].some(
+    (key) => key.toLowerCase() === 'compressors',
+  );
   await mongoose.connect(config.uri, {
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 30000,
     ...(hasCompressor ? {} : { compressors: ['zlib'] }),
   });
-  stage = 'replica-set verification'; console.log('[Startup] MongoDB connected; checking transaction support');
+  stage = 'replica-set verification';
+  console.log('[Startup] MongoDB connected; checking transaction support');
   const hello = await mongoose.connection.db!.admin().command({ hello: 1 });
-  if (!hello.setName && hello.msg !== 'isdbgrid') throw new StartupError('REPLICA_SET_REQUIRED', 'MongoDB must be a replica set or sharded cluster. Use Atlas or configure a local replica set.');
+  if (!hello.setName && hello.msg !== 'isdbgrid')
+    throw new StartupError(
+      'REPLICA_SET_REQUIRED',
+      'MongoDB must be a replica set or sharded cluster. Use Atlas or configure a local replica set.',
+    );
   stage = 'storage writer mode verification';
   await verifyWriterMode();
-  stage = 'index initialization'; console.log('[Startup] Initializing required database indexes');
-  await Promise.all([Admin.init(), Checkpoint.init(), Device.init(), Person.init(), UsageRecord.init(), PromptTurn.init(), SessionProject.init(), PromptErasure.init()]);
+  stage = 'index initialization';
+  console.log('[Startup] Initializing required database indexes');
+  await Promise.all([
+    Admin.init(),
+    Checkpoint.init(),
+    Device.init(),
+    Person.init(),
+    UsageRecord.init(),
+    PromptTurn.init(),
+    SessionProject.init(),
+    PromptErasure.init(),
+  ]);
   await initStorage();
-  const readerRefresh = setInterval(() => void refreshReadMode(), 15000); readerRefresh.unref();
+  const readerRefresh = setInterval(() => void refreshReadMode(), 15000);
+  readerRefresh.unref();
   stage = 'HTTP port binding';
-  const server = app.listen(config.port, config.host, () => console.log('[Server] Ready ' + (server.address() as { port: number }).port));
-  server.on('error', error => { console.error(safeStartupFailure(error, stage)); process.exit(1); });
+  const server = app.listen(config.port, config.host, () =>
+    console.log('[Server] Ready ' + (server.address() as { port: number }).port),
+  );
+  server.on('error', (error) => {
+    console.error(safeStartupFailure(error, stage));
+    process.exit(1);
+  });
 }
-start().catch(error => { console.error(safeStartupFailure(error, stage)); process.exit(1); });
+start().catch((error) => {
+  console.error(safeStartupFailure(error, stage));
+  process.exit(1);
+});

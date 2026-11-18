@@ -73,21 +73,30 @@ const samplePayload = {
   ],
 };
 
-test('retains point session ID with resource fallback without storing other identity attributes',()=>{
- const p=structuredClone(samplePayload),resource=p.resourceMetrics[0].resource.attributes;
- resource.push({key:'session.id',value:{stringValue:'resource-session'}});
- let result=parseOtlpMetricsPayload(p)[0].dataPoints;
- expect(result.every(dp=>dp.sessionId==='resource-session')).toBe(true);
- p.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0].attributes.push({key:'session.id',value:{stringValue:'point-session'}});
- result=parseOtlpMetricsPayload(p)[0].dataPoints;expect(result[0].sessionId).toBe('point-session');
- expect(JSON.stringify(result)).not.toContain('developer@example.com');
+test('retains point session ID with resource fallback without storing other identity attributes', () => {
+  const p = structuredClone(samplePayload),
+    resource = p.resourceMetrics[0].resource.attributes;
+  resource.push({ key: 'session.id', value: { stringValue: 'resource-session' } });
+  let result = parseOtlpMetricsPayload(p)[0].dataPoints;
+  expect(result.every((dp) => dp.sessionId === 'resource-session')).toBe(true);
+  p.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0].attributes.push({
+    key: 'session.id',
+    value: { stringValue: 'point-session' },
+  });
+  result = parseOtlpMetricsPayload(p)[0].dataPoints;
+  expect(result[0].sessionId).toBe('point-session');
+  expect(JSON.stringify(result)).not.toContain('developer@example.com');
 });
-test('missing or malformed session identifiers do not reject otherwise valid token reporting',()=>{
- for(const id of ['', 'unsafe id', 'x'.repeat(129)]){
-  const p=structuredClone(samplePayload);p.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0].attributes.push({key:'session.id',value:{stringValue:id}});
-  expect(parseOtlpMetricsPayload(p)[0].dataPoints[0].sessionId).toBeNull();
- }
- expect(parseOtlpMetricsPayload(samplePayload)[0].dataPoints[0].sessionId).toBeNull();
+test('missing or malformed session identifiers do not reject otherwise valid token reporting', () => {
+  for (const id of ['', 'unsafe id', 'x'.repeat(129)]) {
+    const p = structuredClone(samplePayload);
+    p.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0].attributes.push({
+      key: 'session.id',
+      value: { stringValue: id },
+    });
+    expect(parseOtlpMetricsPayload(p)[0].dataPoints[0].sessionId).toBeNull();
+  }
+  expect(parseOtlpMetricsPayload(samplePayload)[0].dataPoints[0].sessionId).toBeNull();
 });
 
 describe('parseOtlpMetricsPayload', () => {
@@ -106,7 +115,7 @@ describe('parseOtlpMetricsPayload', () => {
 
   test('correctly parses token types', () => {
     const result = parseOtlpMetricsPayload(samplePayload);
-    const types = result[0].dataPoints.map(dp => dp.tokenType);
+    const types = result[0].dataPoints.map((dp) => dp.tokenType);
     expect(types).toContain('input');
     expect(types).toContain('output');
     expect(types).toContain('cacheRead');
@@ -114,13 +123,13 @@ describe('parseOtlpMetricsPayload', () => {
 
   test('correctly parses integer token counts from string asInt', () => {
     const result = parseOtlpMetricsPayload(samplePayload);
-    const inputDp = result[0].dataPoints.find(dp => dp.tokenType === 'input')!;
+    const inputDp = result[0].dataPoints.find((dp) => dp.tokenType === 'input')!;
     expect(inputDp.asInt).toBe(14520);
   });
 
   test('correctly identifies cumulative temporality', () => {
     const result = parseOtlpMetricsPayload(samplePayload);
-    result[0].dataPoints.forEach(dp => {
+    result[0].dataPoints.forEach((dp) => {
       expect(dp.aggregationTemporality).toBe(AGGREGATION_TEMPORALITY_CUMULATIVE);
     });
   });
@@ -173,7 +182,9 @@ describe('parseOtlpMetricsPayload', () => {
     const payload = {
       resourceMetrics: [
         {
-          resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+          resource: {
+            attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }],
+          },
           scopeMetrics: [
             {
               scope: { name: 'claude-code' },
@@ -190,7 +201,7 @@ describe('parseOtlpMetricsPayload', () => {
                         ],
                         startTimeUnixNano: '1700000000000000000',
                         timeUnixNano: '1700000060000000000',
-                        asInt: 5000,  // number, not string
+                        asInt: 5000, // number, not string
                       },
                     ],
                     aggregationTemporality: AGGREGATION_TEMPORALITY_CUMULATIVE,
@@ -208,9 +219,8 @@ describe('parseOtlpMetricsPayload', () => {
   });
 });
 
-
 describe('Bounded searchable telemetry dimensions', () => {
-  test.each(['model', 'query_source'])('rejects oversized %s before persistence', key => {
+  test.each(['model', 'query_source'])('rejects oversized %s before persistence', (key) => {
     const payload = JSON.parse(JSON.stringify(samplePayload));
     const point = payload.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints[0];
     point.attributes = point.attributes.filter((a: { key: string }) => a.key !== key);

@@ -40,7 +40,15 @@ export function buildSeriesKey(params: {
   identityHash?: string;
   temporality?: number;
 }): string {
-  const data = JSON.stringify([params.deviceId, params.model, params.tokenType, params.querySource, params.startTimeUnixNano, params.identityHash, params.temporality]);
+  const data = JSON.stringify([
+    params.deviceId,
+    params.model,
+    params.tokenType,
+    params.querySource,
+    params.startTimeUnixNano,
+    params.identityHash,
+    params.temporality,
+  ]);
   return crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
 }
 

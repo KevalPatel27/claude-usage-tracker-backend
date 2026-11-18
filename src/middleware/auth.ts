@@ -18,7 +18,10 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { sub: string; role: string };
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as {
+      sub: string;
+      role: string;
+    };
     if (payload.role !== 'admin') {
       res.status(403).json({ error: 'Forbidden' });
       return;

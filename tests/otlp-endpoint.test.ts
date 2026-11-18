@@ -10,9 +10,7 @@ const validOtlpPayload = {
   resourceMetrics: [
     {
       resource: {
-        attributes: [
-          { key: 'service.name', value: { stringValue: 'claude-code' } },
-        ],
+        attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }],
       },
       scopeMetrics: [
         {

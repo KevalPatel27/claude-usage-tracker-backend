@@ -60,13 +60,15 @@ describe('buildSeriesKey', () => {
   });
 
   test('key length is 32 chars', () => {
-    expect(buildSeriesKey({
-      deviceId: 'x',
-      model: 'y',
-      tokenType: 'z',
-      querySource: 'w',
-      startTimeUnixNano: '0',
-    })).toHaveLength(32);
+    expect(
+      buildSeriesKey({
+        deviceId: 'x',
+        model: 'y',
+        tokenType: 'z',
+        querySource: 'w',
+        startTimeUnixNano: '0',
+      }),
+    ).toHaveLength(32);
   });
 });
 
@@ -76,7 +78,8 @@ describe('Delta calculation logic (unit)', () => {
   test('first report: full cumulative value is the delta', () => {
     const currentCumulative = 14520;
     const lastCumulative = undefined; // no checkpoint
-    const delta = lastCumulative === undefined ? currentCumulative : currentCumulative - lastCumulative;
+    const delta =
+      lastCumulative === undefined ? currentCumulative : currentCumulative - lastCumulative;
     expect(delta).toBe(14520);
   });
 

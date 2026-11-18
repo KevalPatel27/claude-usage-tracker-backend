@@ -71,17 +71,17 @@ The HTTP listener opens only after configuration, MongoDB connection, transactio
 
 Startup now logs the current stage and a safe error tag without printing connection strings, credentials, raw driver errors or stack traces:
 
-| Tag | Action |
-| --- | --- |
+| Tag                                       | Action                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | MISSING_MONGODB_URI / INVALID_MONGODB_URI | Configure the Atlas Drivers URI; replace placeholders, remove wrapping quotes and encode password characters |
-| INVALID_JWT_SECRET | Generate a random JWT secret with at least 32 characters |
-| LOCAL_DATABASE_ON_RENDER | Use Atlas; Render cannot reach your PC through localhost |
-| MONGODB_UNREACHABLE | Check cluster availability, URI/DNS and Atlas Network Access for Render outbound CIDR ranges |
-| MONGODB_AUTH_FAILED | Check the Atlas database user/password and authSource, not the Atlas website login |
-| MONGODB_PERMISSION_DENIED | Grant the database user appropriate read/write and index creation permissions on this database |
-| REPLICA_SET_REQUIRED | Use Atlas or a configured replica set |
-| INDEX_CONFLICT | Inspect index/data conflicts without deleting accounting state blindly |
-| INVALID_RENDER_HOST / HTTP_BIND_FAILED | Remove HOST or use 0.0.0.0; use Render's assigned PORT |
+| INVALID_JWT_SECRET                        | Generate a random JWT secret with at least 32 characters                                                     |
+| LOCAL_DATABASE_ON_RENDER                  | Use Atlas; Render cannot reach your PC through localhost                                                     |
+| MONGODB_UNREACHABLE                       | Check cluster availability, URI/DNS and Atlas Network Access for Render outbound CIDR ranges                 |
+| MONGODB_AUTH_FAILED                       | Check the Atlas database user/password and authSource, not the Atlas website login                           |
+| MONGODB_PERMISSION_DENIED                 | Grant the database user appropriate read/write and index creation permissions on this database               |
+| REPLICA_SET_REQUIRED                      | Use Atlas or a configured replica set                                                                        |
+| INDEX_CONFLICT                            | Inspect index/data conflicts without deleting accounting state blindly                                       |
+| INVALID_RENDER_HOST / HTTP_BIND_FAILED    | Remove HOST or use 0.0.0.0; use Render's assigned PORT                                                       |
 
 Obtain outbound ranges from the specific Render service → Connect → Outbound and add those ranges to Atlas → Network Access. Do not substitute your home IP. Once corrected, deploy the latest commit; success ends with `[Server] Ready <port>` and /health returning status=ok, db=1. Do not paste secrets to troubleshoot. The latest startup-diagnostic change passed typecheck/build and 81 tests in 7 suites, including credential-redaction and compiled-process failure checks. Actual Render environment values remain unverified until its new safe error line is reviewed.
 
@@ -94,3 +94,7 @@ See [schema and index guide](docs/SCHEMA-AND-INDEXES.md) for persistence rules, 
 See [history setup, retention, APIs and acceptance checks](docs/PROMPT-HISTORY.md). Set `PROMPT_RETENTION_DAYS=30` (default; 1–365). Startup initializes indexes for new PromptTurn, SessionProject and PromptErasure collections. Existing OTLP clients, usage counters and checkpoints retain their behavior. Deploy backend support before offering the new frontend/history helper. Text collection remains disabled for existing devices until an admin opts in.
 
 Validation adds real MongoDB integration tests for dedup, concurrent/out-of-order reports, erasure replay protection, retention, filters, CSV, opt-in/auth and diagnostics. Run existing full test suite with an isolated loopback replica set, never a production URI.
+
+## Formatting
+
+Run `npm run format` to apply Prettier, or `npm run format:check` to check it. Both repositories use the same Prettier and EditorConfig conventions.

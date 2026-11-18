@@ -33,66 +33,85 @@ function setCookie(res: Response, token: string): void {
 }
 
 // Bootstrap: create first admin (requires ADMIN_BOOTSTRAP_SECRET env var)
-authRouter.post('/bootstrap', route(async (req: Request, res: Response) => {
-  const { bootstrapSecret, username, password } = req.body;
+authRouter.post(
+  '/bootstrap',
+  route(async (req: Request, res: Response) => {
+    const { bootstrapSecret, username, password } = req.body;
 
-  if (
-    !bootstrapSecret ||
-    bootstrapSecret !== process.env.ADMIN_BOOTSTRAP_SECRET
-  ) {
-    return res.status(403).json({ error: 'Invalid bootstrap secret' });
-  }
+    if (!bootstrapSecret || bootstrapSecret !== process.env.ADMIN_BOOTSTRAP_SECRET) {
+      return res.status(403).json({ error: 'Invalid bootstrap secret' });
+    }
 
-  const existing = await Admin.countDocuments();
-  if (existing > 0) {
-    return res.status(409).json({ error: 'Admin account already exists. Use /api/auth/login.' });
-  }
+    const existing = await Admin.countDocuments();
+    if (existing > 0) {
+      return res.status(409).json({ error: 'Admin account already exists. Use /api/auth/login.' });
+    }
 
-  if (typeof username !== 'string' || typeof password !== 'string' || password.length < 12 || Buffer.byteLength(password) > 72) {
-    return res.status(400).json({
-      error: 'Username and password required. Password must be at least 12 characters.',
-    });
-  }
+    if (
+      typeof username !== 'string' ||
+      typeof password !== 'string' ||
+      password.length < 12 ||
+      Buffer.byteLength(password) > 72
+    ) {
+      return res.status(400).json({
+        error: 'Username and password required. Password must be at least 12 characters.',
+      });
+    }
 
-  const passwordHash = await hashPassword(password);
-  const admin = await Admin.create({ _id: '000000000000000000000001', username, passwordHash });
+    const passwordHash = await hashPassword(password);
+    const admin = await Admin.create({ _id: '000000000000000000000001', username, passwordHash });
 
-  const token = signToken(admin._id.toHexString());
-  setCookie(res, token);
+    const token = signToken(admin._id.toHexString());
+    setCookie(res, token);
 
-  return res.status(201).json({ message: 'Admin created', username: admin.username });
-}));
+    return res.status(201).json({ message: 'Admin created', username: admin.username });
+  }),
+);
 
 // Login
-authRouter.post('/login', route(async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  if (typeof username !== 'string' || typeof password !== 'string' || Buffer.byteLength(password) > 72) {
-    return res.status(400).json({ error: 'Username and password required' });
-  }
+authRouter.post(
+  '/login',
+  route(async (req: Request, res: Response) => {
+    const { username, password } = req.body;
+    if (
+      typeof username !== 'string' ||
+      typeof password !== 'string' ||
+      Buffer.byteLength(password) > 72
+    ) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
 
-  const admin = await Admin.findOne({ username: username.toLowerCase() });
-  if (!admin) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
+    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    if (!admin) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-  const valid = await verifyPassword(password, admin.passwordHash);
-  if (!valid) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
+    const valid = await verifyPassword(password, admin.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-  const token = signToken(admin._id.toHexString());
-  setCookie(res, token);
+    const token = signToken(admin._id.toHexString());
+    setCookie(res, token);
 
-  return res.json({ message: 'Logged in', username: admin.username });
-}));
+    return res.json({ message: 'Logged in', username: admin.username });
+  }),
+);
 
 // Logout
-authRouter.post('/logout', route((_req: Request, res: Response) => {
-  res.clearCookie(COOKIE_NAME, { path: '/' });
-  return res.json({ message: 'Logged out' });
-}));
+authRouter.post(
+  '/logout',
+  route((_req: Request, res: Response) => {
+    res.clearCookie(COOKIE_NAME, { path: '/' });
+    return res.json({ message: 'Logged out' });
+  }),
+);
 
 // Session check
-authRouter.get('/me', requireAdmin, route(async (req: Request, res: Response) => {
-  return res.json({ adminId: (req as any).adminId });
-}));
+authRouter.get(
+  '/me',
+  requireAdmin,
+  route(async (req: Request, res: Response) => {
+    return res.json({ adminId: (req as any).adminId });
+  }),
+);

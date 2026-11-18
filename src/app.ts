@@ -1,5 +1,5 @@
 import { QueryError } from './lib/query.js';
-import {storageMode,compactStorage,STORAGE_VERSION} from './lib/storage.js';
+import { storageMode, compactStorage, STORAGE_VERSION } from './lib/storage.js';
 import { ManagementError } from './lib/management.js';
 import 'dotenv/config';
 import express from 'express';
@@ -21,29 +21,33 @@ app.set('trust proxy', 1);
 const PORT = parseInt(process.env.PORT ?? '4000', 10);
 
 // ─── Security headers ──────────────────────────────────────────────────────────
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')
   .split(',')
-  .map(o => o.trim())
+  .map((o) => o.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow no-origin requests (Render health checks, curl)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS: origin ${origin} not allowed`));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-Tracker-Key'],
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow no-origin requests (Render health checks, curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-Tracker-Key'],
+  }),
+);
 
 // ─── Body parsing ──────────────────────────────────────────────────────────────
 // OTLP payloads can be larger; cap at 2MB
@@ -53,14 +57,14 @@ app.use(cookieParser());
 // ─── Rate limiting ─────────────────────────────────────────────────────────────
 const otlpLimiter = rateLimit({
   windowMs: 60_000,
-  max: 120,  // OTLP default export interval is 60s; allow bursts of 2/s
+  max: 120, // OTLP default export interval is 60s; allow bursts of 2/s
   message: { error: 'Too many ingestion requests' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Rate limit by tracker key prefix to allow multiple devices from same IP
     const key = req.headers['x-tracker-key'];
-    return typeof key === 'string' ? key.substring(0, 16) : req.ip ?? 'unknown';
+    return typeof key === 'string' ? key.substring(0, 16) : (req.ip ?? 'unknown');
   },
 });
 
@@ -75,10 +79,26 @@ const apiLimiter = rateLimit({
 // ─── Routes ────────────────────────────────────────────────────────────────────
 app.use('/v1', otlpLimiter, otlpRouter, historyIngestRouter);
 app.use('/api', (req, res, next) => {
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin && !allowedOrigins.includes(req.headers.origin)) return res.status(403).json({ error: 'Origin not allowed' });
+  if (
+    !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+    req.headers.origin &&
+    !allowedOrigins.includes(req.headers.origin)
+  )
+    return res.status(403).json({ error: 'Origin not allowed' });
   next();
 });
-app.use('/api/auth', rateLimit({ windowMs: 15 * 60_000, max: 30, skip: req => req.method === 'GET', standardHeaders: true, legacyHeaders: false }), apiLimiter, authRouter);
+app.use(
+  '/api/auth',
+  rateLimit({
+    windowMs: 15 * 60_000,
+    max: 30,
+    skip: (req) => req.method === 'GET',
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+  apiLimiter,
+  authRouter,
+);
 app.use('/api/devices', apiLimiter, devicesRouter);
 app.use('/api/people', apiLimiter, peopleRouter);
 app.use('/api/dashboard', apiLimiter, dashboardRouter);
@@ -92,8 +112,12 @@ app.get('/health', (_req, res) => {
     status: dbState === 1 ? 'ok' : 'degraded',
     db: dbState,
     uptime: process.uptime(),
-    release:process.env.RENDER_GIT_COMMIT??null,
-    storage:{writerMode:storageMode,readMode:compactStorage?'compact':'raw',version:STORAGE_VERSION},
+    release: process.env.RENDER_GIT_COMMIT ?? null,
+    storage: {
+      writerMode: storageMode,
+      readMode: compactStorage ? 'compact' : 'raw',
+      version: STORAGE_VERSION,
+    },
   });
 });
 
@@ -104,11 +128,21 @@ app.use((_req, res) => {
 
 // ─── Error handler ─────────────────────────────────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  if (!(err instanceof ManagementError) && !(err instanceof QueryError)) console.error('[ERROR]', err.name);
+  if (!(err instanceof ManagementError) && !(err instanceof QueryError))
+    console.error('[ERROR]', err.name);
   const status = (err as Error & { status?: number }).status;
   const httpStatus = status && status >= 400 && status < 500 ? status : 500;
-  if (_req.path === '/v1/metrics') { res.status(httpStatus).json({ code: httpStatus === 400 ? 3 : httpStatus === 413 ? 8 : 13, message: 'Request failed' }); return; }
-  res.status(httpStatus).json({ error: err instanceof ManagementError || err instanceof QueryError ? err.message : 'Request failed' });
+  if (_req.path === '/v1/metrics') {
+    res.status(httpStatus).json({
+      code: httpStatus === 400 ? 3 : httpStatus === 413 ? 8 : 13,
+      message: 'Request failed',
+    });
+    return;
+  }
+  res.status(httpStatus).json({
+    error:
+      err instanceof ManagementError || err instanceof QueryError ? err.message : 'Request failed',
+  });
 });
 
 // ─── MongoDB connection ────────────────────────────────────────────────────────
