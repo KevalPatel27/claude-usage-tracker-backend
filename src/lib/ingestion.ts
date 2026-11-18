@@ -1,4 +1,4 @@
-import { appendUsage, correctDelta, enrichSession, counterNeighbors, ensureMirrorStream } from './storage.js';
+import { appendUsage, correctDelta, enrichSession, counterNeighbors, ensureMirrorStream, mirrorWrites, STORAGE_VERSION } from './storage.js';
 /** Durable per-series serialization. All reads, inserts and neighbor corrections are transactional. */
 import mongoose, { Types } from 'mongoose';
 import { Checkpoint, Device } from '../models/index.js';
@@ -24,13 +24,18 @@ export async function ingestDataPoints(deviceId: Types.ObjectId, _person: Types.
         // A device write serializes ingestion with reassignment, revocation and deletion.
         const device = await Device.findOneAndUpdate({ _id: deviceId, revokedAt: null, archivedAt: null }, { $inc: { revision: 1 } }, { new: true, session });
         if (!device) throw new CounterConflict('Device no longer active');
-        await Checkpoint.updateOne(filter, { $inc: { revision: 1 } }, { session, upsert: true });
+        const checkpoint = await Checkpoint.findOneAndUpdate(
+          filter,
+          { $inc: { revision: 1 } },
+          { session, upsert: true, new: true },
+        ).select('purgedThroughTimeUnixNano purgedCumulative compactVersion');
         const timeUnixNano = nanoKey(dp.timeUnixNano), intervalStart = nanoKey(dp.startTimeUnixNano);
-        const checkpoint = await Checkpoint.findOne(filter).session(session);
         const floor = checkpoint?.purgedThroughTimeUnixNano;
         if (floor && timeUnixNano <= floor) return; // Acknowledge discarded historical retries without restoring erased data.
         if (floor && dp.aggregationTemporality === 1 && intervalStart < floor) throw new CounterConflict('Delta interval crosses permanently deleted history; start a new session');
-        await ensureMirrorStream(filter,session);
+        if (mirrorWrites && checkpoint?.compactVersion !== STORAGE_VERSION) {
+          await ensureMirrorStream(filter, session);
+        }
         // An exact stream fingerprint already includes session.id. A new readable ID can
         // safely label that stream's older samples without modifying accounting values.
         if (dp.sessionId) await enrichSession(filter, dp.sessionId, session);

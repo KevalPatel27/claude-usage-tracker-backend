@@ -150,8 +150,12 @@ UsageRecordSchema.index({ exportedAt: -1 });
 UsageRecordSchema.index({ usageModel: 1, exportedAt: -1 }, { name: 'usage_model_period' });
 UsageRecordSchema.index({ sessionId: 1, deviceId: 1, exportedAt: -1 });
 
-if(process.env.STORAGE_MODE==='compact-v2'){UsageRecordSchema.set('autoCreate',false);UsageRecordSchema.set('autoIndex',false);}
-export const UsageRecord = mongoose.model<IUsageRecord>('UsageRecord', UsageRecordSchema,process.env.STORAGE_MODE==='compact-v2'?'usagepoints':'usagerecords');
+const compactOnly = ['compact', 'compact-v2'].includes(process.env.STORAGE_MODE ?? '');
+if (compactOnly) {
+  UsageRecordSchema.set('autoCreate', false);
+  UsageRecordSchema.set('autoIndex', false);
+}
+export const UsageRecord = mongoose.model<IUsageRecord>('UsageRecord', UsageRecordSchema, compactOnly ? 'usagepoints' : 'usagerecords');
 
 // ─── Checkpoint ───────────────────────────────────────────────────────────────
 // Tracks last known cumulative value per series to calculate deltas.

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { initStorage, refreshReadMode } from './lib/storage.js';
+import { initStorage, refreshReadMode, verifyWriterMode } from './lib/storage.js';
 import { PromptTurn, SessionProject, PromptErasure } from './models/history.js';
 import { historyRetentionDays } from './lib/history.js';
 import mongoose from 'mongoose';
@@ -11,10 +11,18 @@ async function start() {
   const config = startupConfig(process.env);
   historyRetentionDays();
   stage = 'MongoDB connection'; console.log('[Startup] Connecting to MongoDB (connection string withheld)');
-  await mongoose.connect(config.uri, { serverSelectionTimeoutMS: 10000, socketTimeoutMS: 30000 });
+  const connectionParams = new URLSearchParams(config.uri.split('?', 2)[1]);
+  const hasCompressor = [...connectionParams.keys()].some(key => key.toLowerCase() === 'compressors');
+  await mongoose.connect(config.uri, {
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 30000,
+    ...(hasCompressor ? {} : { compressors: ['zlib'] }),
+  });
   stage = 'replica-set verification'; console.log('[Startup] MongoDB connected; checking transaction support');
   const hello = await mongoose.connection.db!.admin().command({ hello: 1 });
   if (!hello.setName && hello.msg !== 'isdbgrid') throw new StartupError('REPLICA_SET_REQUIRED', 'MongoDB must be a replica set or sharded cluster. Use Atlas or configure a local replica set.');
+  stage = 'storage writer mode verification';
+  await verifyWriterMode();
   stage = 'index initialization'; console.log('[Startup] Initializing required database indexes');
   await Promise.all([Admin.init(), Checkpoint.init(), Device.init(), Person.init(), UsageRecord.init(), PromptTurn.init(), SessionProject.init(), PromptErasure.init()]);
   await initStorage();

@@ -1,10 +1,10 @@
 # Reversible compact storage rollout
 
-Production defaults to `mirror` when NODE_ENV=production or RENDER=true; no new Render settings are required. Otherwise default is legacy. Explicit STORAGE_MODE accepts legacy, mirror and local-only compact-v2. Production rejects compact-v2. Existing domains, authentication cookies, device keys, OTLP payloads and PC setup remain unchanged.
+Production defaults to `mirror` when NODE_ENV=production or RENDER=true. Otherwise the default is legacy. Explicit STORAGE_MODE accepts `legacy`, `mirror`, `compact` and the local-only `compact-v2` prototype. `compact` requires a verified cutover marker. Existing domains, authentication cookies, device keys, OTLP payloads and PC setup remain unchanged.
 
 Mirror mode writes raw `usagerecords` and bounded `usagebuckets` in the same device-locked transaction. IDs, timestamps, ownership and increments are identical. It also mirrors session enrichment, late-successor corrections and permanent deletions. First report for a historical stream atomically backfills that stream before adding a new point. A durable checkpoint version makes this idempotent. Online backfill bounds each stream to100,000 points; larger/orphaned streams stop for review rather than silently truncate.
 
-Raw data remains current and retained throughout this release. Disk usage initially INCREASES while both representations coexist. Document-payload savings measured on the local compact-only experiment are not current production disk savings. No raw deletion/retirement tool is provided.
+Mirror mode retains both representations, including after a reader switch. Disk usage only benefits from retiring raw storage after the compact-only cutover.
 
 Each journal holds at most256 points, with scalar date bounds and indexes. `usagepoints` is a read-only compatibility view. Selective report queries filter arrays before expansion. The compact path is smaller in document count but has been slower overall than raw locally; storage and latency are separate measures. Keep raw readers until restoration, full parity, API/CSV checks and acceptable bounded latency have been proven.
 
@@ -42,7 +42,17 @@ This re-verifies full document parity, then records the reader request in `stora
 
 5. Check health, new real reports, full parity again, person/device/session/model/date breakdowns and CSV. Do not send invented telemetry to the real employee devices. Observe real incoming reports instead.
 
-## Rollback
+## Compact-only cutover
+
+1. Verify the intended database and restore a current private backup into a disposable database. Rehearse the cutover there. Include both usage representations and checkpoints in the recovery plan.
+2. Stop every process that writes to the production database, including Render, local tracker backends and old deployment instances. Leave them stopped during the final backfill and verification. Older binaries do not check the cutover marker.
+3. With `STORAGE_MODE=mirror`, run `node dist/scripts/storage-rollout.js backfill`, then `node dist/scripts/storage-rollout.js prepare-compact-only`. The second command checks full document parity and records the cutover marker. The backend then requires `STORAGE_MODE=compact` to start against this database.
+4. Start the updated backend with `STORAGE_MODE=compact`. Confirm `/health` reports compact writer and reader modes. Check that existing totals and CSV export match the pre-cutover results, that real reports increase the counts in compact storage, and that raw storage remains frozen.
+5. After confirming the compact backend and restore plan, retire the frozen `usagerecords` collection. The cutover command never drops it. Keep `usagebuckets`, the `usagepoints` view, checkpoints and the cutover marker.
+
+After compact writes start, the raw collection becomes stale. Recover by restoring or repairing the compact backend with current data. A return to mirror mode requires rebuilding and verifying the raw representation from current compact data before enabling raw readers.
+
+## Mirror-mode reader rollback
 
 ```powershell
 $env:STORAGE_MODE='mirror'

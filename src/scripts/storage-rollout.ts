@@ -32,9 +32,23 @@ async function main(){
   await mongoose.connect(uri,{serverSelectionTimeoutMS:10000});
   try{
     const command=process.argv[2]??'status';
-    if(!['status','backfill','verify','read-compact','read-raw'].includes(command))throw new Error('Unknown command');
+    if(!['status','backfill','verify','read-compact','read-raw','prepare-compact-only'].includes(command))throw new Error('Unknown command');
     await initStorage();
     const controls=mongoose.connection.db!.collection('storageRollout'),filter={_id:STORAGE_VERSION as any};
+    if ((await controls.findOne(filter))?.compactOnlyVersion === STORAGE_VERSION) {
+      if (command !== 'status') throw new Error('Compact-only cutover has already been prepared.');
+      console.log(JSON.stringify({ compactOnlyPrepared: true, journals: await UsageBucket.countDocuments() }));
+      return;
+    }
+    if (command === 'prepare-compact-only') {
+      const rawExists = await mongoose.connection.db!.listCollections({ name: 'usagerecords', type: 'collection' }).hasNext();
+      if (!rawExists) throw new Error('Expected the raw collection before preparing the cutover.');
+      const proof = await verifyStorage();
+      await controls.updateOne(filter, { $set: { ...proof, compactOnlyVersion: STORAGE_VERSION } },
+        { upsert: true, writeConcern: { w: 'majority', j: true } });
+      console.log(JSON.stringify({ compactOnlyPrepared: true, records: proof.count, totalTokens: proof.total }));
+      return;
+    }
     if(command==='backfill')console.log(JSON.stringify(await backfillAll()));
     if(command==='verify'||command==='read-compact'){
       const proof=await verifyStorage();

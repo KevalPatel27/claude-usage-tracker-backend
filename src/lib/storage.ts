@@ -1,14 +1,25 @@
 /** Versioned additive rollout. Raw records remain current for reversible reader cutover. */
 import mongoose, { ClientSession, Schema, Types } from 'mongoose';
 import { UsageRecord, Checkpoint, Device } from '../models/index.js';
+import { StartupError } from './startup.js';
 
 export const storageMode = process.env.STORAGE_MODE ?? (process.env.NODE_ENV==='production'||process.env.RENDER==='true'?'mirror':'legacy');
-if(!['legacy','mirror','compact-v2'].includes(storageMode))throw new Error('Invalid STORAGE_MODE');
+if(!['legacy','mirror','compact','compact-v2'].includes(storageMode))throw new Error('Invalid STORAGE_MODE');
 if(storageMode==='compact-v2'&&(process.env.NODE_ENV==='production'||process.env.RENDER==='true'))throw new Error('Prototype compact-only mode is not allowed in production; use mirror rollout');
 export const mirrorWrites=storageMode==='mirror';
-export let compactStorage = storageMode==='compact-v2';
+const compactOnly = storageMode === 'compact' || storageMode === 'compact-v2';
+export let compactStorage = compactOnly;
 const journalEnabled=mirrorWrites||compactStorage;
 export const STORAGE_VERSION='journals-v1';
+export async function verifyWriterMode() {
+  const control = await mongoose.connection.db!.collection('storageRollout').findOne({ _id: STORAGE_VERSION as any });
+  const prepared = control?.compactOnlyVersion === STORAGE_VERSION;
+  if ((storageMode === 'compact') !== prepared) {
+    throw new StartupError('STORAGE_MODE_MISMATCH', prepared
+      ? 'This database has been prepared for compact-only writes. Set STORAGE_MODE=compact.'
+      : 'Verify raw/compact parity and prepare the database before setting STORAGE_MODE=compact.');
+  }
+}
 export async function refreshReadMode(){
   if(!mirrorWrites)return;
   try{const control=await mongoose.connection.db!.collection('storageRollout').findOne({_id:STORAGE_VERSION as any});
@@ -207,14 +218,16 @@ export async function correctDelta(filter: object, id: Types.ObjectId, deltaToke
 }
 
 export async function deleteUsage(filter: { deviceId?: Types.ObjectId; personIdAtTime?: Types.ObjectId }, session: ClientSession) {
+  if (!filter.deviceId && !filter.personIdAtTime) throw new Error('Refusing unscoped journal deletion.');
   // Even a legacy rollback must honor deletion in an existing shadow collection.
-  if(storageMode!=='compact-v2')await UsageRecord.deleteMany(filter,{session});
+  if (!compactOnly) await UsageRecord.deleteMany(filter, { session });
+  // If the frozen raw collection is still present, honor permanent deletion there as well.
+  if (storageMode === 'compact') await mongoose.connection.db!.collection('usagerecords').deleteMany(filter, { session });
   if (filter.deviceId) return UsageBucket.deleteMany({ deviceId: filter.deviceId }, { session });
   if (filter.personIdAtTime) {
     await UsageBucket.updateMany({ 'p.o': filter.personIdAtTime }, { $pull: { p: { o: filter.personIdAtTime } } }, { session });
     return UsageBucket.deleteMany({ p: { $size: 0 } }, { session });
   }
-  throw new Error('Refusing unscoped journal deletion.');
 }
 
 export async function storageStats() {
@@ -222,7 +235,9 @@ export async function storageStats() {
   const physical = journalEnabled ? await UsageBucket.countDocuments() : logical;
   const [logicalSize]=await UsageRecord.aggregate([{$group:{_id:null,n:{$sum:{$bsonSize:'$$ROOT'}}}}]);
   const [physicalSize]=journalEnabled?await UsageBucket.aggregate([{$group:{_id:null,n:{$sum:{$bsonSize:'$$ROOT'}}}}]):[logicalSize];
+  const rawRetained = mirrorWrites || (storageMode === 'compact' &&
+    await mongoose.connection.db!.listCollections({ name: 'usagerecords', type: 'collection' }).hasNext());
   return { logicalBsonBytes:logicalSize?.n??0,physicalBsonBytes:physicalSize?.n??0,mode:storageMode,readMode:compactStorage?'compact':'raw',writerVersion:STORAGE_VERSION,logicalReadings: logical, physicalDocuments: physical,
-    maxPointsPerDocument: journalEnabled ? MAX_POINTS : 1, prototype:storageMode==='compact-v2',rawRetained:mirrorWrites,
-    note:mirrorWrites?'Raw and compact records are retained and updated transactionally during rollout. No raw storage reclaimed.':'All logical readings, timestamps and zero increments retained.' };
+    maxPointsPerDocument: journalEnabled ? MAX_POINTS : 1, prototype:storageMode==='compact-v2',rawRetained,
+    note:mirrorWrites?'Raw and compact records are retained and updated transactionally during rollout. No raw storage reclaimed.':compactOnly?'Only compact storage receives new usage writes. All logical readings, timestamps and zero increments are retained.':'All logical readings, timestamps and zero increments retained.' };
 }
