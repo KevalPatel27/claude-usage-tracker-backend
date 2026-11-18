@@ -1,3 +1,4 @@
+import { authRateLimitExempt, clientRateLimitKey } from './lib/client-ip.js';
 import { QueryError } from './lib/query.js';
 import { storageMode, compactStorage, STORAGE_VERSION } from './lib/storage.js';
 import { ManagementError } from './lib/management.js';
@@ -18,7 +19,6 @@ import { dashboardRouter } from './routes/dashboard.js';
 
 const app = express();
 app.set('trust proxy', 1);
-const PORT = parseInt(process.env.PORT ?? '4000', 10);
 
 // ─── Security headers ──────────────────────────────────────────────────────────
 app.use(
@@ -64,13 +64,15 @@ const otlpLimiter = rateLimit({
   keyGenerator: (req) => {
     // Rate limit by tracker key prefix to allow multiple devices from same IP
     const key = req.headers['x-tracker-key'];
-    return typeof key === 'string' ? key.substring(0, 16) : (req.ip ?? 'unknown');
+    return typeof key === 'string' ? key.substring(0, 16) : clientRateLimitKey(req);
   },
 });
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
   max: 200,
+  keyGenerator: clientRateLimitKey,
+  skip: (req) => req.baseUrl === '/api/auth' && authRateLimitExempt(req),
   message: { error: 'Too many requests' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -92,7 +94,9 @@ app.use(
   rateLimit({
     windowMs: 15 * 60_000,
     max: 30,
-    skip: (req) => req.method === 'GET',
+    keyGenerator: clientRateLimitKey,
+    skip: (req) => req.method === 'GET' || authRateLimitExempt(req),
+    message: { error: 'Too many sign-in attempts. Please wait before trying again.' },
     standardHeaders: true,
     legacyHeaders: false,
   }),

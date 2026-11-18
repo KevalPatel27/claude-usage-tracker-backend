@@ -102,3 +102,9 @@ Run `npm run format` to apply Prettier, or `npm run format:check` to check it. B
 ## Hostinger builds
 
 Hostinger runs `npm install` before `npm run build`. The repository's `.npmrc` includes development dependencies so TypeScript and its type declarations are installed even with `NODE_ENV=production`. Use `dist/index.js` as the entry file and `PORT=3000` for Hostinger's managed Express hosting.
+
+## Client IP forwarding
+
+Set `CLIENT_IP_PROXY_SECRET` to the same random server-only value of at least 32 characters on both deployments. The frontend signs the platform-provided client address, request method and path with a timestamp. The backend verifies this proof before using that client address for rate limits. Vercel supplies `x-vercel-forwarded-for`; Hostinger CDN supplies `x-real-ip` or the last `x-forwarded-for` entry. Keep the frontend behind its hosting platform's proxy so these headers reflect the visitor.
+
+Authentication requests from verified clients `103.250.144.203` and `2402:a00:408:4126:ac01:ad35:7114:f8d` are exempt from authentication throttling. Other clients retain individual rate limits. Forwarding proof expires after 60 seconds. Ordinary password verification still applies. Both deployments need the shared secret and the new code before client attribution takes effect.
